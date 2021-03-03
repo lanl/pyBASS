@@ -5,29 +5,29 @@ A python implementation of Bayesian adaptive spline surfaces (BASS).  Similar to
 
 ## Example
 
+```python
+import pyBASS as pb
+import numpy as np
 
-    import pyBASS as pb
-    import numpy as np
+# Friedman function (Friedman, 1991, Multivariate Adaptive Regression Splines)
+def f(x):
+    return (10. * np.sin(np.pi * x[:, 0] * x[:, 1]) + 20. * (x[:, 2] - .5) ** 2 
+            + 10 * x[:, 3] + 5. * x[:, 4])
 
-    # Friedman function (Friedman, 1991, Multivariate Adaptive Regression Splines)
-    def f(x):
-        return (10. * np.sin(np.pi * x[:, 0] * x[:, 1]) + 20. * (x[:, 2] - .5) ** 2 
-                + 10 * x[:, 3] + 5. * x[:, 4])
-    
-    
-    n = 500 # sample size
-    p = 10 # number of predictors (only 5 are used)
-    x = np.random.rand(n, p) # training set
-    xx = np.random.rand(1000, p)
-    y = f(x) + np.random.normal(size=n)
-    
-    # fit BASS model with RJMCMC
-    mod = pb.bass(x, y, nmcmc=10000, nburn=9000)
-    mod.plot()
 
-    # predict at new inputs (xx)
-    pred = mod.predict(xx, mcmc_use=np.array([1, 100]), nugget=True)
-    
+n = 500 # sample size
+p = 10 # number of predictors (only 5 are used)
+x = np.random.rand(n, p) # training set
+xx = np.random.rand(1000, p)
+y = f(x) + np.random.normal(size=n)
+
+# fit BASS model with RJMCMC
+mod = pb.bass(x, y, nmcmc=10000, nburn=9000)
+mod.plot()
+
+# predict at new inputs (xx)
+pred = mod.predict(xx, mcmc_use=np.array([1, 100]), nugget=True)
+```
     
 
 ## References
