@@ -2,6 +2,11 @@
 
 A python implementation of Bayesian adaptive spline surfaces (BASS).  Similar to Bayesian multivariate adaptive regression splines (Bayesian MARS) introduced in Denison _et al_. (1998).
 
+## Installation
+Use
+```bash
+pip install git+https://github.com/lanl/pyBASS.git
+```
 
 ## Example
 
