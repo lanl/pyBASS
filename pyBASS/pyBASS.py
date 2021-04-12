@@ -440,7 +440,8 @@ class BassState:
 
 
 class BassModel:
-    """The model structure, including the current RJMCMC state and previous saved states; with methods for saving the state, plotting MCMC traces, and predicting"""
+    """The model structure, including the current RJMCMC state and previous saved states; with methods for saving the
+        state, plotting MCMC traces, and predicting"""
     def __init__(self, data, prior, nstore):
         """Get starting state, build storage structures"""
         self.data = data
@@ -484,7 +485,14 @@ class BassModel:
         self.k = self.k + 1
 
     def plot(self):
-        """Trace plots and predictions/residuals"""
+        """
+        Trace plots and predictions/residuals
+
+        * top left - trace plot of number of basis functions (excluding burn-in and thinning)
+        * top right - trace plot of residual variance
+        * bottom left - training data against predictions
+        * bottom right - histogram of residuals (posterior mean) with assumed Gaussian overlaid.
+        """
         fig = plt.figure()
 
         ax = fig.add_subplot(2, 2, 1)
@@ -529,7 +537,17 @@ class BassModel:
         return mat
 
     def predict(self, X, mcmc_use=None, nugget=False):
-        """Predict at new inputs"""
+        """
+        BASS prediction using new inputs (after training).
+
+        :param X: matrix (numpy array) of predictors with dimension nxp, where n is the number of prediction points and
+            p is the number of inputs (features). p must match the number of training inputs, and the order of the
+            columns must also match.
+        :param mcmc_use: which MCMC samples to use (list of integers of length m).  Defaults to all MCMC samples.
+        :param nugget: whether to use the error variance when predicting.  If False, predictions are for mean function.
+        :return: a matrix (numpy array) of predictions with dimension mxn, with rows corresponding to MCMC samples and
+            columns corresponding to prediction points.
+        """
         Xs = normalize(X, self.data.bounds)
         if np.any(mcmc_use == None):
             mcmc_use = np.array(range(self.nstore))
@@ -550,7 +568,39 @@ class BassModel:
 
 def bass(xx, y, nmcmc=10000, nburn=9000, thin=1, w1=5, w2=5, maxInt=3, maxBasis=1000, npart=None, g1=0, g2=0,
          s2_lower=0, h1=10, h2=10, a_tau=0.5, b_tau=None, verbose=True):
-    """Wrapper to get BassData, BassPrior, initialize BassModel, and iterate the RJMCMC (including saving the states)"""
+    """
+    **Bayesian Adaptive Spline Surfaces - model fitting**
+
+    This function takes training data, priors, and algorithmic constants and fits a BASS model.  The result is a set of
+    posterior samples of the model.  The resulting object has a predict function to generate posterior predictive
+    samples.  Default settings of priors and algorithmic parameters should only be changed by users who understand
+    the model.
+
+    :param xx: matrix (numpy array) of predictors of dimension nxp, where n is the number of training examples and p is
+        the number of inputs (features).
+    :param y: response vector (numpy array) of length n.
+    :param nmcmc: total number of MCMC iterations (integer)
+    :param nburn: number of MCMC iterations to throw away as burn-in (integer, less than nmcmc).
+    :param thin: number of MCMC iterations to thin (integer).
+    :param w1: nominal weight for degree of interaction, used in generating candidate basis functions. Should be greater
+        than 0.
+    :param w2: nominal weight for variables, used in generating candidate basis functions. Should be greater than 0.
+    :param maxInt: maximum degree of interaction for spline basis functions (integer, less than p)
+    :param maxBasis: maximum number of tensor product spline basis functions (integer)
+    :param npart: minimum number of non-zero points in a basis function. If the response is functional, this refers only
+        to the portion of the basis function coming from the non-functional predictors. Defaults to 20 or 0.1 times the
+        number of observations, whichever is smaller.
+    :param g1: shape for IG prior on residual variance.
+    :param g2: scale for IG prior on residual variance.
+    :param s2_lower: lower bound for residual variance.
+    :param h1: shape for gamma prior on mean number of basis functions.
+    :param h2: scale for gamma prior on mean number of basis functions.
+    :param a_tau: shape for gamma prior on 1/g in g-prior.
+    :param b_tau: scale for gamma prior on 1/g in g-prior.
+    :param verbose: boolean for printing progress
+    :return: an object of class BassModel, which includes predict and plot functions.
+    """
+
     t0 = time.time()
     if b_tau == None:
         b_tau = len(y) / 2
@@ -576,7 +626,22 @@ def bass(xx, y, nmcmc=10000, nburn=9000, thin=1, w1=5, w2=5, maxInt=3, maxBasis=
 class BassBasis:
     """Structure for functional response BASS model using a basis decomposition, gets a list of BASS models"""
     def __init__(self, xx, y, basis, newy, y_mean, y_sd, trunc_error, ncores=1, **kwargs):
-        """Initialize and call bass function"""
+        """
+        Fit BASS model with multivariate/functional response by projecting onto user specified basis.
+
+        :param xx: matrix (numpy array) of predictors of dimension nxp, where n is the number of training examples and
+            p is the number of inputs (features).
+        :param y: response matrix (numpy array) of dimension nxq, where q is the number of multivariate/functional
+            responses.
+        :param basis: matrix (numpy array) of basis functions of dimension nxk.
+        :param newy: matrix (numpy array) of y projected onto basis, dimension kxn.
+        :param y_mean: vector (numpy array) of length q with the mean if y was centered before obtaining newy.
+        :param y_sd: vector (numpy array) of length q with the standard deviation if y was scaled before obtaining newy.
+        :param trunc_error: numpy array of projection truncation errors (dimension qxn)
+        :param ncores: number of threads to use when fitting independent BASS models (integer less than or equal to
+            npc).
+        :param kwargs: optional arguments to bass function.
+        """
         self.basis = basis
         self.xx = xx
         self.y = y
@@ -595,7 +660,19 @@ class BassBasis:
         return
 
     def predict(self, X, mcmc_use=None, nugget=False, ncores=1):
-        """Predict the functional response at new inputs"""
+        """
+        Predict the functional response at new inputs.
+
+        :param X: matrix (numpy array) of predictors with dimension nxp, where n is the number of prediction points and
+            p is the number of inputs (features). p must match the number of training inputs, and the order of the
+            columns must also match.
+        :param mcmc_use: which MCMC samples to use (list of integers of length m).  Defaults to all MCMC samples.
+        :param nugget: whether to use the error variance when predicting.  If False, predictions are for mean function.
+        :param ncores: number of cores to use while predicting (integer).
+        :return: a numpy array of predictions with dimension mxnxq, with first dimension corresponding to MCMC samples,
+            second dimension corresponding to prediction points, and third dimension corresponding to
+            multivariate/functional response.
+        """
         if ncores == 1:
             pred_coefs = list(map(lambda ii: self.bm_list[ii].predict(X, mcmc_use, nugget), list(range(self.nbasis))))
         else:
@@ -606,7 +683,15 @@ class BassBasis:
         return out * self.y_sd + self.y_mean
 
     def plot(self):
-        """Plots of parameter traces, predictions, residuals"""
+        """
+        Trace plots and predictions/residuals
+
+        * top left - trace plot of number of basis functions (excluding burn-in and thinning) for each BASS model
+        * top right - trace plot of residual variance for each BASS model
+        * bottom left - training data against predictions
+        * bottom right - histogram of residuals (posterior mean).
+        """
+
         fig = plt.figure()
 
         ax = fig.add_subplot(2, 2, 1)
@@ -639,7 +724,23 @@ class BassBasis:
 
 
 def bassPCA(xx, y, npc=None, percVar=99.9, ncores=1, center=True, scale=False, **kwargs):
-    """Wrapper to get principal components and call BassBasis"""
+    """
+    Wrapper to get principal components and call BassBasis, which then calls bass function to fit the BASS model for
+    functional (or multivariate) response data.
+
+    :param xx: matrix (numpy array) of predictors of dimension nxp, where n is the number of training examples and p is
+        the number of inputs (features).
+    :param y: response matrix (numpy array) of dimension nxq, where q is the number of multivariate/functional
+        responses.
+    :param npc: number of principal components to use (integer, optional if percVar is specified).
+    :param percVar: percent (between 0 and 100) of variation to explain when choosing number of principal components
+        (if npc=None).
+    :param ncores: number of threads to use when fitting independent BASS models (integer less than or equal to npc).
+    :param center: whether to center the responses before principal component decomposition (boolean).
+    :param scale: whether to scale the responses before principal component decomposition (boolean).
+    :param kwargs: optional arguments to bass function.
+    :return: object of class BassBasis, with predict and plot functions.
+    """
     y_mean = 0
     y_sd = 1
     if center:
@@ -725,14 +826,14 @@ if __name__ == '__main__':
 
     if True:
         def f(x):
-            out = 10. * np.sin(np.pi * x[:, 0] * x[:, 1]) + 20. * (x[:, 2] - .5) ** 2 + 10 * x[:, 3] + 5. * x[:, 4]
+            out = 10. * np.sin(2*np.pi * x[:, 0] * x[:, 1]) + 20. * (x[:, 2] - .5) ** 2 + 10 * x[:, 3] + 5. * x[:, 4]
             return out
 
 
         n = 500
         p = 10
-        x = np.random.rand(n, p) - .5
-        xx = np.random.rand(1000, p) - .5
+        x = np.random.rand(n, p)
+        xx = np.random.rand(1000, p)
         y = f(x) + np.random.normal(size=n)
 
         mod = bass(x, y, nmcmc=10000, nburn=9000)
@@ -759,7 +860,7 @@ if __name__ == '__main__':
         modf = bassPCA(x, y, ncores=2, percVar=99.99)
         modf.plot()
 
-        pred = modf.predict(xx, mcmc_use=np.array([1, 100]), nugget=True)
+        pred = modf.predict(xx, mcmc_use=np.array([1,100]), nugget=True)
 
         ind = 11
         plt.plot(pred[:,ind,:].T)
