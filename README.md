@@ -1,6 +1,9 @@
 # pyBASS
+[![Build Status][build-status-img]](https://github.com/lanl/pyBASS/actions)
 
-A python implementation of Bayesian adaptive spline surfaces (BASS).  Similar to Bayesian multivariate adaptive regression splines (Bayesian MARS) introduced in Denison _et al_. (1998).
+A python implementation of Bayesian adaptive spline surfaces (BASS).  Similar
+to Bayesian multivariate adaptive regression splines (Bayesian MARS) introduced
+in Denison _et al_. (1998).
 
 ## Installation
 Use
@@ -36,15 +39,15 @@ pred = mod.predict(xx, mcmc_use=np.array([1, 100]), nugget=True)
     
 
 ## References
-Friedman, J.H., 1991. Multivariate adaptive regression splines. _The annals of statistics_, pp.1-67.
+1. Friedman, J.H., 1991. Multivariate adaptive regression splines. _The annals of statistics_, pp.1-67.
 
-Denison, D.G., Mallick, B.K. and Smith, A.F., 1998. Bayesian MARS. _Statistics and Computing_, 8(4), pp.337-346.
+2. Denison, D.G., Mallick, B.K. and Smith, A.F., 1998. Bayesian MARS. _Statistics and Computing_, 8(4), pp.337-346.
 
-Francom, D., Sansó, B., Kupresanin, A. and Johannesson, G., 2018. Sensitivity analysis and emulation for functional data using Bayesian adaptive splines. _Statistica Sinica_, pp.791-816.
+3. Francom, D., Sansó, B., Kupresanin, A. and Johannesson, G., 2018. Sensitivity analysis and emulation for functional data using Bayesian adaptive splines. _Statistica Sinica_, pp.791-816.
 
-Francom, D., Sansó, B., Bulaevskaya, V., Lucas, D. and Simpson, M., 2019. Inferring atmospheric release characteristics in a large computer experiment using Bayesian adaptive splines. _Journal of the American Statistical Association_, 114(528), pp.1450-1465.
+4. Francom, D., Sansó, B., Bulaevskaya, V., Lucas, D. and Simpson, M., 2019. Inferring atmospheric release characteristics in a large computer experiment using Bayesian adaptive splines. _Journal of the American Statistical Association_, 114(528), pp.1450-1465.
 
-Francom, D. and Sansó, B., 2020. BASS: An R package for fitting and performing sensitivity analysis of Bayesian adaptive spline surfaces. _Journal of Statistical Software_, 94(1), pp.1-36.
+5. Francom, D. and Sansó, B., 2020. BASS: An R package for fitting and performing sensitivity analysis of Bayesian adaptive spline surfaces. _Journal of Statistical Software_, 94(1), pp.1-36.
 
 
 
@@ -63,3 +66,6 @@ others to do so.
 LANL software release C19112
 
 Author: Devin Francom
+
+[build-status-img]: https://github.com/lanl/pyBASS/workflows/Build/badge.svg
+
