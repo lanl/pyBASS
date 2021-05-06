@@ -607,6 +607,8 @@ def bass(xx, y, nmcmc=10000, nburn=9000, thin=1, w1=5, w2=5, maxInt=3, maxBasis=
     if npart == None:
         npart = min(20, .1 * len(y))
     bd = BassData(xx, y)
+    if bd.p < maxInt:
+        maxInt = bd.p
     bp = BassPrior(maxInt, maxBasis, npart, g1, g2, s2_lower, h1, h2, a_tau, b_tau, w1, w2)
     nstore = int((nmcmc - nburn) / thin)
     bm = BassModel(bd, bp, nstore)  # if we add tempering, bm should have as many states as temperatures
