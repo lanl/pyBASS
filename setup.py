@@ -14,10 +14,6 @@ setup(name='pyBASS',
       install_requires=[
           'numpy',
           'matplotlib',
-          'scipy',
-          'multiprocessing',
-          'collections',
-          'itertools',
-          'time'
+          'scipy'
       ]
       )
