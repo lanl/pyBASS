@@ -22,7 +22,8 @@ import matplotlib.pyplot as plt
 from itertools import combinations, chain
 from scipy.special import comb
 from collections import namedtuple
-from pathos.multiprocessing import ProcessingPool as Pool
+#from pathos.multiprocessing import ProcessingPool as Pool
+from multiprocessing import Pool
 import time
 
 
@@ -625,6 +626,44 @@ def bass(xx, y, nmcmc=10000, nburn=9000, thin=1, w1=5, w2=5, maxInt=3, maxBasis=
     return bm
 
 
+class PoolBass(object):
+    # adapted from https://stackoverflow.com/questions/1816958/cant-pickle-type-instancemethod-when-using-multiprocessing-pool-map/41959862#41959862 answer by parisjohn
+    # somewhat slow collection of results
+   def __init__(self, x, y, **kwargs):
+       self.x = x
+       self.y = y
+       self.kw = kwargs
+
+   def rowbass(self, i):
+       return bass(self.x, self.y[i,:], **self.kw)
+
+   def fit(self, ncores, nrow_y):
+      pool = Pool(ncores)
+      out = pool.map(self, range(nrow_y))
+      return out
+
+   def __call__(self, i):   
+     return self.rowbass(i)
+
+class PoolBassPredict(object):
+   def __init__(self, X, mcmc_use, nugget, bm_list):
+       self.X = X
+       self.mcmc_use = mcmc_use
+       self.nugget = nugget
+       self.bm_list = bm_list
+
+   def listpredict(self, i):
+       return self.bm_list[i].predict(self.X, self.mcmc_use, self.nugget)
+
+   def predict(self, ncores, nlist):
+      pool = Pool(ncores)
+      out = pool.map(self, range(nlist))
+      return out
+
+   def __call__(self, i):   
+     return self.listpredict(i)
+
+
 class BassBasis:
     """Structure for functional response BASS model using a basis decomposition, gets a list of BASS models"""
     def __init__(self, xx, y, basis, newy, y_mean, y_sd, trunc_error, ncores=1, **kwargs):
@@ -656,9 +695,11 @@ class BassBasis:
         if ncores == 1:
             self.bm_list = list(map(lambda ii: bass(self.xx, self.newy[ii, :], **kwargs), list(range(self.nbasis))))
         else:
-            with Pool(ncores) as pool:
-                self.bm_list = list(
-                    pool.map(lambda ii: bass(self.xx, self.newy[ii, :], **kwargs), list(range(self.nbasis))))
+            #with Pool(ncores) as pool: # this approach for pathos.multiprocessing
+            #    self.bm_list = list(
+            #        pool.map(lambda ii: bass(self.xx, self.newy[ii, :], **kwargs), list(range(self.nbasis))))
+            temp = PoolBass(self.xx, self.newy, **kwargs)
+            self.bm_list = temp.fit(ncores, self.nbasis)
         return
 
     def predict(self, X, mcmc_use=None, nugget=False, ncores=1):
@@ -670,7 +711,7 @@ class BassBasis:
             columns must also match.
         :param mcmc_use: which MCMC samples to use (list of integers of length m).  Defaults to all MCMC samples.
         :param nugget: whether to use the error variance when predicting.  If False, predictions are for mean function.
-        :param ncores: number of cores to use while predicting (integer).
+        :param ncores: number of cores to use while predicting (integer).  In almost all cases, use ncores=1.
         :return: a numpy array of predictions with dimension mxnxq, with first dimension corresponding to MCMC samples,
             second dimension corresponding to prediction points, and third dimension corresponding to
             multivariate/functional response.
@@ -678,9 +719,11 @@ class BassBasis:
         if ncores == 1:
             pred_coefs = list(map(lambda ii: self.bm_list[ii].predict(X, mcmc_use, nugget), list(range(self.nbasis))))
         else:
-            with Pool(ncores) as pool:
-                pred_coefs = list(
-                    pool.map(lambda ii: self.bm_list[ii].predict(X, mcmc_use, nugget), list(range(self.nbasis))))
+            #with Pool(ncores) as pool:
+            #    pred_coefs = list(
+            #        pool.map(lambda ii: self.bm_list[ii].predict(X, mcmc_use, nugget), list(range(self.nbasis))))
+            temp = PoolBassPredict(X, mcmc_use, nugget, self.bm_list)
+            pred_coefs = temp.predict(ncores, self.nbasis)
         out = np.dot(np.dstack(pred_coefs), self.basis.T)
         return out * self.y_sd + self.y_mean
 
