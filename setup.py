@@ -2,7 +2,7 @@ import setuptools
 from setuptools import setup
 
 setup(name='pyBASS',
-      version='0.2',
+      version='0.3',
       description='Bayesian Adaptive Spline Surfaces',
       url='http://www.github.com/lanl/pyBASS',
       author='Devin Francom',
