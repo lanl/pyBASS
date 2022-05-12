@@ -705,7 +705,7 @@ class BassBasis:
             self.bm_list = temp.fit(ncores, self.nbasis)
         return
 
-    def predict(self, X, mcmc_use=None, nugget=False, ncores=1):
+    def predict(self, X, mcmc_use=None, nugget=False, trunc_error=False, ncores=1):
         """
         Predict the functional response at new inputs.
 
@@ -714,6 +714,7 @@ class BassBasis:
             columns must also match.
         :param mcmc_use: which MCMC samples to use (list of integers of length m).  Defaults to all MCMC samples.
         :param nugget: whether to use the error variance when predicting.  If False, predictions are for mean function.
+        :param trunc_error: whether to use truncation error when predicting.
         :param ncores: number of cores to use while predicting (integer).  In almost all cases, use ncores=1.
         :return: a numpy array of predictions with dimension mxnxq, with first dimension corresponding to MCMC samples,
             second dimension corresponding to prediction points, and third dimension corresponding to
@@ -728,7 +729,10 @@ class BassBasis:
             temp = PoolBassPredict(X, mcmc_use, nugget, self.bm_list)
             pred_coefs = temp.predict(ncores, self.nbasis)
         out = np.dot(np.dstack(pred_coefs), self.basis.T)
-        return out * self.y_sd + self.y_mean
+        out2 = out * self.y_sd + self.y_mean
+        if trunc_error:
+            out2 += self.trunc_error[:, np.random.choice(np.arange(self.trunc_error.shape[1]), size=np.prod(out.shape[:2]), replace=True)].reshape(out.shape)
+        return out2
 
     def plot(self):
         """
