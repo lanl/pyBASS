@@ -864,7 +864,7 @@ def bassPCA(xx, y, npc=None, percVar=99.9, ncores=1, center=True, scale=False, *
     :return: object of class BassBasis, with predict and plot functions.
     """
 
-    setup = BassPCAsetup(xx, y, center, scale)
+    setup = BassPCAsetup(y, center, scale)
 
     if npc == None:
         cs = np.cumsum(setup.evals) / np.sum(setup.evals) * 100.
