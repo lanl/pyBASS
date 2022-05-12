@@ -813,58 +813,6 @@ def bassPCA(xx, y, npc=None, percVar=99.9, ncores=1, center=True, scale=False, *
     return BassBasis(xx, y, basis, newy, y_mean, y_sd, trunc_error, ncores, **kwargs)
 
 
-def warp(x, y, lmarks, ref_lmarks, xgrid_aligned):
-    """Linear interpolation warping"""
-    x_warp = np.interp(x, lmarks, ref_lmarks)
-    return np.interp(xgrid_aligned, x_warp, y)
-
-
-def unwarp(xaligned, yaligned, ref_lmarks, lmarks, xgrid):
-    """Inverse of warp"""
-    xaligned_unwarp = np.interp(xaligned, ref_lmarks, lmarks)
-    return np.interp(xgrid, xaligned_unwarp, yaligned)
-
-
-def bassPCAwarp(xx, x, y, lmarks, npc=None, percVar=99.9, ncores=1, center=True, scale=False, **kwargs):
-    """Wrapper to build bass models for warping functions and landmarks"""
-    nlmarks = len(lmarks[0])
-    nx = len(x[0])
-    ref_lmarks = np.mean(lmarks, axis=0)
-    xgrid_aligned = np.linspace(ref_lmarks[0], ref_lmarks[nlmarks - 1],
-                                nx)  # assume lmarks include start and end points
-    xgrid = np.linspace(x.min(), x.max(), nx)
-
-    # ipdb.set_trace()
-
-    N = xx.shape[0]
-    for i in range(N):
-        y[i, :] = warp(x[i, :], y[i, :], lmarks[i, :], ref_lmarks, xgrid_aligned)
-
-    # ipdb.set_trace()
-
-    mod_yaligned = bassPCA(xx, y, npc, percVar, ncores, center, scale, **kwargs)
-    mod_lmarks = bassPCA(xx, lmarks, npc, percVar, ncores, center, scale, **kwargs)
-
-    return mod_yaligned, mod_lmarks, xgrid_aligned, ref_lmarks, xgrid
-
-
-def predict_warp(wmod, X, mcmc_use=None, nugget=False):
-    """Prediction using warped model"""
-    y_pred = wmod[0].predict(X, mcmc_use, nugget)
-    lmarks_pred = wmod[1].predict(X, mcmc_use, nugget)
-    nx = len(wmod[4])
-    # ipdb.set_trace()
-
-    x_pred = np.zeros(y_pred.shape)
-    for i in range(y_pred.shape[0]):
-        for j in range(y_pred.shape[1]):
-            x_pred[i, j, :] = np.linspace(lmarks_pred[i, j, 0], lmarks_pred[i, j, -1], nx)
-            y_pred[i, j, :] = unwarp(wmod[2], y_pred[i, j, :], wmod[3], lmarks_pred[i, j, :], x_pred[i, j, :])
-            # y_pred[i,j,:] = unwarp(wmod[2], y_pred[i,j,:], wmod[3], lmarks_pred[i,j,:], wmod[4])
-
-    return x_pred, y_pred
-
-
 ######################################################
 ## test it out
 
