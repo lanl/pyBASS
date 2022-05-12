@@ -862,37 +862,3 @@ if __name__ == '__main__':
 
         plt.plot(np.apply_along_axis(f2, 1, xx), np.mean(pred,axis=0))
         abline(1,0)
-
-    if True:
-
-        def f2(x):
-            tt = np.linspace(0, x[0], 50)
-            out = 10. * np.sin(np.pi * tt * x[1]) + 20. * (x[2] - .5) ** 2 + 10 * x[3] + 5. * x[4]
-            return tt, out
-
-
-        n = 500
-        p = 9
-        x = np.random.rand(n, p)
-        xx = np.random.rand(1000, p)
-        # e = np.random.normal(size=n*len(tt))
-        y = np.apply_along_axis(f2, 1, x)  # + e.reshape(n,len(tt))
-
-        tt = np.zeros([n, 50])
-        y = np.zeros([n, 50])
-        for i in range(n):
-            out = f2(x[i, :])
-            tt[i, :] = out[0]
-            y[i, :] = out[1]
-
-        lmarks = np.zeros([n, 2])
-        lmarks[:, 1] = x[:, 0]
-        modf = bassPCAwarp(x, tt, y, lmarks, ncores=1, percVar=99.99)
-
-        xuse = xx[100, :].reshape([1, 9])
-        pred = predict_warp(modf, xuse, mcmc_use=np.array([0]), nugget=True)
-
-        pred = predict_warp(modf, xx, mcmc_use=np.array([0]), nugget=True)
-        for ii in range(23):
-            plt.plot(pred[0][0, ii, :], pred[1][0, ii, :])
-            plt.plot(f2(xx[ii, :])[0], f2(xx[ii, :])[1], linestyle="--")
