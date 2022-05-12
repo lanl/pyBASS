@@ -674,7 +674,7 @@ class BassBasis:
             p is the number of inputs (features).
         :param y: response matrix (numpy array) of dimension nxq, where q is the number of multivariate/functional
             responses.
-        :param basis: matrix (numpy array) of basis functions of dimension nxk.
+        :param basis: matrix (numpy array) of basis functions of dimension qxk.
         :param newy: matrix (numpy array) of y projected onto basis, dimension kxn.
         :param y_mean: vector (numpy array) of length q with the mean if y was centered before obtaining newy.
         :param y_sd: vector (numpy array) of length q with the standard deviation if y was scaled before obtaining newy.
