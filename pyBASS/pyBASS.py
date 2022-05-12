@@ -767,6 +767,38 @@ class BassBasis:
 
         plt.show()
 
+PCAsetup = namedtuple('PCAsetup', 'xx y basis newy y_mean y_sd y_scale evals')
+
+def bassPCAsetup(xx, y, center=True, scale=False):
+    """
+    Wrapper to get principal components that would be used for bassPCA.  Mainly used for checking how many PCs should be used.
+
+    :param xx: matrix (numpy array) of predictors of dimension nxp, where n is the number of training examples and p is
+        the number of inputs (features).
+    :param y: response matrix (numpy array) of dimension nxq, where q is the number of multivariate/functional
+        responses.
+    :param npc: number of principal components to use (integer, optional if percVar is specified).
+    :param percVar: percent (between 0 and 100) of variation to explain when choosing number of principal components
+        (if npc=None).
+    :param center: whether to center the responses before principal component decomposition (boolean).
+    :param scale: whether to scale the responses before principal component decomposition (boolean).
+    :return: namedtuple with elements xx y basis newy y_mean y_sd trunc_error evals (eigenvalues).
+    """
+    y_mean = 0
+    y_sd = 1
+    if center:
+        y_mean = np.mean(y, axis=0)
+    if scale:
+        y_sd = np.std(y, axis=0)
+        y_sd[y_sd == 0] = 1
+    y_scale = np.apply_along_axis(lambda row: (row - y_mean) / y_sd, 1, y)
+    #decomp = np.linalg.svd(y_scale.T)
+    U, s, V = np.linalg.svd(y_scale.T)
+    evals = s ** 2
+    basis = np.dot(U, np.diag(s))
+    newy = V
+    
+    return PCAsetup(xx, y, basis, newy, y_mean, y_sd, y_scale, evals)
 
 def bassPCA(xx, y, npc=None, percVar=99.9, ncores=1, center=True, scale=False, **kwargs):
     """
@@ -786,31 +818,23 @@ def bassPCA(xx, y, npc=None, percVar=99.9, ncores=1, center=True, scale=False, *
     :param kwargs: optional arguments to bass function.
     :return: object of class BassBasis, with predict and plot functions.
     """
-    y_mean = 0
-    y_sd = 1
-    if center:
-        y_mean = np.mean(y, axis=0)
-    if scale:
-        y_sd = np.std(y, axis=0)
-        y_sd[y_sd == 0] = 1
-    y_scale = np.apply_along_axis(lambda row: (row - y_mean) / y_sd, 1, y)
-    #decomp = np.linalg.svd(y_scale.T)
-    U, s, V = np.linalg.svd(y_scale.T)
+
+    setup = bassPCAsetup(xx, y, center, scale)
 
     if npc == None:
-        cs = np.cumsum(s ** 2) / np.sum(s ** 2) * 100.
+        cs = np.cumsum(setup.evals) / np.sum(setup.evals) * 100.
         npc = np.where(cs > percVar)[0][0] + 1
 
     if ncores > npc:
         ncores = npc
 
-    basis = np.dot(U[:, :npc], np.diag(s[:npc]))
-    newy = V[:npc, :]
-    trunc_error = np.dot(basis, newy) - y_scale.T
+    basis = setup.basis[:, :npc]
+    newy = setup.newy[:npc, :]
+    trunc_error = np.dot(basis, newy) - setup.y_scale.T
 
     print('\rStarting bassPCA with {:d} components, using {:d} cores.'.format(npc, ncores))
 
-    return BassBasis(xx, y, basis, newy, y_mean, y_sd, trunc_error, ncores, **kwargs)
+    return BassBasis(xx, y, basis, newy, setup.y_mean, setup.y_sd, trunc_error, ncores, **kwargs)
 
 
 ######################################################
