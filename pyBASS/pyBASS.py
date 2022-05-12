@@ -826,18 +826,20 @@ class BassPCAsetup:
         cmap = plt.get_cmap("tab10")
 
         ax = fig.add_subplot(1, 2, 1)
-        plt.plot(self.basis[:, npc:], color='grey')
+        if npc < len(self.evals):
+            plt.plot(self.basis[:, npc:], color='grey')
         for i in range(npc):
             plt.plot(self.basis[:, i], color=cmap(i%10))
         plt.ylabel("principal components")
         plt.xlabel("multivariate/functional index")
 
         ax = fig.add_subplot(1, 2, 2)
-        x = np.arange(len(self.evals))
-        plt.scatter(x[npc:], cs[npc:], facecolors='none', color='grey')
+        x = np.arange(len(self.evals)) + 1
+        if npc < len(self.evals):
+            plt.scatter(x[npc:], cs[npc:], facecolors='none', color='grey')
         for i in range(npc):
             plt.scatter(x[i], cs[i], facecolors='none', color=cmap(i%10))
-        plt.axvline(npc-1)
+        plt.axvline(npc)
         #if percVar is not None:
         #    plt.axhline(percVar)
         plt.ylabel("cumulative eigenvalues (percent variance)")
