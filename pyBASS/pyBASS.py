@@ -794,17 +794,18 @@ def bassPCA(xx, y, npc=None, percVar=99.9, ncores=1, center=True, scale=False, *
         y_sd = np.std(y, axis=0)
         y_sd[y_sd == 0] = 1
     y_scale = np.apply_along_axis(lambda row: (row - y_mean) / y_sd, 1, y)
-    decomp = np.linalg.svd(y_scale.T)
+    #decomp = np.linalg.svd(y_scale.T)
+    U, s, V = np.linalg.svd(y_scale.T)
 
     if npc == None:
-        cs = np.cumsum(decomp[1] ** 2) / np.sum(decomp[1] ** 2) * 100.
+        cs = np.cumsum(s ** 2) / np.sum(s ** 2) * 100.
         npc = np.where(cs > percVar)[0][0] + 1
 
     if ncores > npc:
         ncores = npc
 
-    basis = np.dot(decomp[0][:, 0:npc], np.diag(decomp[1][0:npc]))
-    newy = decomp[2][0:npc, :]
+    basis = np.dot(U[:, :npc], np.diag(s[:npc]))
+    newy = V[:npc, :]
     trunc_error = np.dot(basis, newy) - y_scale.T
 
     print('\rStarting bassPCA with {:d} components, using {:d} cores.'.format(npc, ncores))
