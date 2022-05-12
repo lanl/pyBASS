@@ -549,6 +549,9 @@ class BassModel:
         :return: a matrix (numpy array) of predictions with dimension mxn, with rows corresponding to MCMC samples and
             columns corresponding to prediction points.
         """
+        if len(X.shape)==1:
+            X = X[None, :]
+        
         Xs = normalize(X, self.data.bounds)
         if np.any(mcmc_use == None):
             mcmc_use = np.array(range(self.nstore))
@@ -771,19 +774,16 @@ class BassPCAsetup:
     """
     Wrapper to get principal components that would be used for bassPCA.  Mainly used for checking how many PCs should be used.
 
-    :param xx: matrix (numpy array) of predictors of dimension nxp, where n is the number of training examples and p is
-        the number of inputs (features).
-    :param y: response matrix (numpy array) of dimension nxq, where q is the number of multivariate/functional
+    :param y: response matrix (numpy array) of dimension nxq, where n is the number of training examples and q is the number of multivariate/functional
         responses.
     :param npc: number of principal components to use (integer, optional if percVar is specified).
     :param percVar: percent (between 0 and 100) of variation to explain when choosing number of principal components
         (if npc=None).
     :param center: whether to center the responses before principal component decomposition (boolean).
     :param scale: whether to scale the responses before principal component decomposition (boolean).
-    :return: namedtuple with elements xx y basis newy y_mean y_sd trunc_error evals (eigenvalues).
+    :return: object with plot method.
     """
-    def __init__(self, xx, y, center=True, scale=False):
-        self.xx = xx
+    def __init__(self, y, center=True, scale=False):
         self.y = y
         self.y_mean = 0
         self.y_sd = 1
@@ -798,8 +798,6 @@ class BassPCAsetup:
         self.evals = s ** 2
         self.basis = np.dot(U, np.diag(s))
         self.newy = V
-        
-        #self.setup = PCAsetup(xx, y, basis, newy, y_mean, y_sd, y_scale, evals)
         return
     
     def plot(self, npc=None, percVar=None):
@@ -814,10 +812,8 @@ class BassPCAsetup:
 
         if npc == None and percVar == 100:
             npc = len(self.evals)
-
         if npc == None and percVar is not None:
             npc = np.where(cs >= percVar)[0][0] + 1
-
         if npc == None or npc > len(self.evals):
             npc = len(self.evals)
 
