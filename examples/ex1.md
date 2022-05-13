@@ -34,7 +34,7 @@ mod = pb.bass(x, y)
 mod.plot()
 ```
 
-    BASS MCMC Complete. Time: 3.376908 seconds.
+    BASS MCMC Complete. Time: 3.236959 seconds.
 
 
 
@@ -47,8 +47,8 @@ The following gives the posterior predictions of the BMARS mean model.
 
 
 ```python
-pred = mod.predict(xx)
-plt.scatter(ftest, pred.mean(axis=0)) # posterior mean prediction vs noisless test outputs
+fpred = mod.predict(xx)
+plt.scatter(ftest, fpred.mean(axis=0)) # posterior mean prediction vs noisless test outputs
 plt.show()
 ```
 
@@ -62,9 +62,9 @@ To get full prediction uncertainty, use the `nugget=True` option.  For instance,
 
 
 ```python
-pred_1obs = mod.predict(xx[0], nugget=True)
-plt.hist(pred_1obs)
-plt.axvline(ytest[0], color='red')
+ypred = mod.predict(xx, nugget=True)
+plt.hist(ypred[:, 40])
+plt.axvline(ytest[40], color='red')
 plt.show()
 ```
 
@@ -78,14 +78,13 @@ We can calculate the empirical coverage of the uncertainty from our test set pre
 
 
 ```python
-pred_obs = mod.predict(xx, nugget=True)
-quantiles = np.quantile(pred_obs, [0.025, .975], axis=0)
+quantiles = np.quantile(ypred, [0.025, .975], axis=0)
 np.mean((quantiles[0] < ytest) * (quantiles[1] > ytest))
 ```
 
 
 
 
-    0.941
+    0.947
 
 
