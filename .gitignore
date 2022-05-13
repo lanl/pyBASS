@@ -2,7 +2,14 @@
 .idea/
 
 # local test scripts for debugging
-*test_local.py
+*debug_local.py
+
+### VisualStudioCode ###
+.vscode/*   
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

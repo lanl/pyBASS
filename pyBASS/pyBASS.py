@@ -891,7 +891,7 @@ def bassPCA(xx, y, npc=None, percVar=99.9, ncores=1, center=True, scale=False, *
 
 if __name__ == '__main__':
 
-    if True:
+    if False:
         def f(x):
             out = 10. * np.sin(2*np.pi * x[:, 0] * x[:, 1]) + 20. * (x[:, 2] - .5) ** 2 + 10 * x[:, 3] + 5. * x[:, 4]
             return out
@@ -910,7 +910,7 @@ if __name__ == '__main__':
 
         print(np.var(mod.predict(xx).mean(axis=0)-f(xx)))
 
-    if True:
+    if False:
         def f2(x):
             out = 10. * np.sin(np.pi * tt * x[1]) + 20. * (x[2] - .5) ** 2 + 10 * x[3] + 5. * x[4]
             return out
