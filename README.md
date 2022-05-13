@@ -12,8 +12,8 @@ pip install git+https://github.com/lanl/pyBASS.git
 ```
 
 ## Examples
-*[Example 1](examples/ex1.md) - univariate response
-*[Example 2](examples/ex2.md) - multivariate/functional response
+* [Example 1](examples/ex1.md) - univariate response
+* [Example 2](examples/ex2.md) - multivariate/functional response
 
 
 ## References

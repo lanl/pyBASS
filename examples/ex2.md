@@ -59,9 +59,9 @@ mod2.plot()
 ```
 
     Starting bassPCA with 3 components, using 3 cores.
-    BASS MCMC Complete. Time: 3.327175 seconds.
-    BASS MCMC Complete. Time: 3.341257 seconds.
-    BASS MCMC Complete. Time: 3.400794 seconds.
+    BASS MCMC Complete. Time: 3.399235 seconds.
+    BASS MCMC Complete. Time: 3.402881 seconds.
+    BASS MCMC Complete. Time: 3.504653 seconds.
 
 
 
@@ -113,16 +113,18 @@ plt.show()
     
 
 
+Prediction uncertainty for one of the test samples:
+
 
 ```python
 ypred = mod2.predict(xx, nugget=True, trunc_error=False)
-plt.plot(ypred[:,0,:].T, color='grey')
-plt.plot(ytest[0])
+plt.plot(ypred[:,70,:].T, color='grey')
+plt.plot(ytest[70])
 plt.show()
 ```
 
 
     
-![png](ex2_files/ex2_14_0.png)
+![png](ex2_files/ex2_15_0.png)
     
 

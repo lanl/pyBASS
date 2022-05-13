@@ -1,4 +1,4 @@
-In this example, we generate data from the Friedman function at fit a model with pyBASS.
+In this example, we generate data from the Friedman function at fit a model with `pyBASS`.
 
 
 ```python
@@ -21,7 +21,8 @@ p = 10 # number of predictors (only 5 are used)
 x = np.random.rand(n, p) # training inputs
 xx = np.random.rand(1000, p) # test inputs
 y = f(x) + np.random.normal(size=n) * 0.1 # noisy training outputs
-ytest = f(xx) + np.random.normal(size=1000) * 0.1 # noisy test outputs
+ftest = f(xx)
+ytest = ftest + np.random.normal(size=1000) * 0.1 # noisy test outputs
 
 ```
 
@@ -33,7 +34,7 @@ mod = pb.bass(x, y)
 mod.plot()
 ```
 
-    BASS MCMC Complete. Time: 3.382453 seconds.
+    BASS MCMC Complete. Time: 3.376908 seconds.
 
 
 
@@ -47,7 +48,7 @@ The following gives the posterior predictions of the BMARS mean model.
 
 ```python
 pred = mod.predict(xx)
-plt.scatter(f(xx), pred.mean(axis=0)) # posterior mean prediction vs noisless test outputs
+plt.scatter(ftest, pred.mean(axis=0)) # posterior mean prediction vs noisless test outputs
 plt.show()
 ```
 
@@ -57,7 +58,7 @@ plt.show()
     
 
 
-To get full prediction uncertainty, use the nugget=True option.  For instance, below we predict at just one new input setting.  The distribution of predictions represents both uncertainty in the BMARS mean as well as predictive variance (e.g., measurement error).
+To get full prediction uncertainty, use the `nugget=True` option.  For instance, below we predict at just one new input setting.  The distribution of predictions represents both uncertainty in the BMARS mean as well as predictive variance (e.g., measurement error).
 
 
 ```python
@@ -85,6 +86,6 @@ np.mean((quantiles[0] < ytest) * (quantiles[1] > ytest))
 
 
 
-    0.931
+    0.941
 
 
