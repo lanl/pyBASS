@@ -77,7 +77,8 @@ def comb_index(n, k):
 
 def dmwnchBass(z_vec, vars_use):
     """Multivariate Walenius' noncentral hypergeometric density function with some variables fixed"""
-    alpha = z_vec[vars_use - 1] / sum(np.delete(z_vec, vars_use))
+    with np.errstate(divide='ignore'):
+        alpha = z_vec[vars_use - 1] / sum(np.delete(z_vec, vars_use))
     j = len(alpha)
     ss = 1 + (-1) ** j * 1 / (sum(alpha) + 1)
     for i in range(j - 1):
