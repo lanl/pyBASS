@@ -18,7 +18,7 @@ def test_bassPCA_fit():
     ftest = np.apply_along_axis(f2, 1, xx)
 
     # fit BASS model with RJMCMC
-    mod = pb.bassPCA(x, y)
+    mod = pb.bassPCA(x, y, maxInt=5)
 
     # predict at new inputs (xnew)
     pred = mod.predict(xx, nugget=True)
