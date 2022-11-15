@@ -545,7 +545,7 @@ class BassModel:
             ).squeeze()
             for m, i in enumerate(ind)
         ])
-        return np.column_stack([np.ones(n), mat])
+        return np.column_stack([np.ones(len(X)), mat])
 
 
     def predict(self, X, mcmc_use=None, nugget=False):
@@ -562,7 +562,7 @@ class BassModel:
         """
         if X.ndim == 1:
             X = X[None, :] # correct?
-        
+
         Xs = normalize(X, self.data.bounds)
         if np.any(mcmc_use == None):
             mcmc_use = np.array(range(self.nstore))
