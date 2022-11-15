@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright 2020. Triad National Security, LLC. All rights reserved.
-This program was produced under U.S. Government contract 89233218CNA000001 for Los Alamos
-National Laboratory (LANL), which is operated by Triad National Security, LLC for the U.S.
-Department of Energy/National Nuclear Security Administration. All rights in the program are
-reserved by Triad National Security, LLC, and the U.S. Department of Energy/National Nuclear
-Security Administration. The Government is granted for itself and others acting on its behalf a
-nonexclusive, paid-up, irrevocable worldwide license in this material to reproduce, prepare
-derivative works, distribute copies to the public, perform publicly and display publicly, and to permit
-others to do so.
+Copyright 2020. Triad National Security, LLC. All rights reserved.  This program
+was produced under U.S. Government contract 89233218CNA000001 for Los Alamos
+National Laboratory (LANL), which is operated by Triad National Security, LLC
+for the U.S.  Department of Energy/National Nuclear Security Administration. All
+rights in the program are reserved by Triad National Security, LLC, and the U.S.
+Department of Energy/National Nuclear Security Administration. The Government is
+granted for itself and others acting on its behalf a nonexclusive, paid-up,
+irrevocable worldwide license in this material to reproduce, prepare derivative
+works, distribute copies to the public, perform publicly and display publicly,
+and to permit others to do so.
 
 LANL software release C19112
 Author: Devin Francom
@@ -178,12 +179,11 @@ class BassData:
         self.xx_orig = xx
         self.y = y
         self.ssy = sum(y * y)
-        self.n = len(xx)
-        self.p = len(xx[0])
-        self.bounds = np.zeros([self.p, 2])
-        for i in range(self.p):
-            self.bounds[i, 0] = np.min(xx[:, i])
-            self.bounds[i, 1] = np.max(xx[:, i])
+        self.n, self.p = xx.shape
+        self.bounds = np.column_stack([
+            np.min(xx, axis=1),
+            np.max(xx, axis=1)
+        ])
         self.xx = normalize(self.xx_orig, self.bounds)
         return
 
