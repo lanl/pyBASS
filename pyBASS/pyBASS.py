@@ -525,25 +525,16 @@ class BassModel:
 
     def makeBasisMatrix(self, model_ind, X):
         """Make basis matrix for model"""
-        # nb = self.samples.nbasis_models[model_ind]
-        # n = len(X)
-        # mat = np.zeros([n, nb + 1])
-        # mat[:, 0] = 1
-        # for m in range(nb):
-        #     ind = list(range(self.samples.n_int[model_ind, m]))
-        #     mat[:, m + 1] = makeBasis(self.samples.signs[model_ind, m, ind], self.samples.vs[model_ind, m, ind],
-        #                               self.samples.knots[model_ind, m, ind], X).reshape(n)
-        # return mat
-
-        ind = [np.arange(i) for i in self.samples.n_int[model_ind]]
+        nb = self.samples.nbasis_models[model_ind]
+        ind_list = [np.arange(self.samples.n_int[model_ind, m]) for m in range(nb)]
         mat = np.column_stack([
             makeBasis(
-                self.samples.signs[model_ind, m, i],
-                self.samples.vs[model_ind, m, i],
-                self.samples.knots[model_ind, m, i],
+                self.samples.signs[model_ind, m, ind],
+                self.samples.vs[model_ind, m, ind],
+                self.samples.knots[model_ind, m, ind],
                 X
             ).squeeze()
-            for m, i in enumerate(ind)
+            for m, ind in enumerate(ind_list)
         ])
         return np.column_stack([np.ones(len(X)), mat])
 
@@ -573,16 +564,22 @@ class BassModel:
         for j in umodels:
             mcmc_use_j = mcmc_use[np.ix_(models == j)]
             nn = len(mcmc_use_j)
-            out[range(k, nn + k), :] = np.dot(self.samples.beta[mcmc_use_j, 0:(self.samples.nbasis_models[j] + 1)],
-                                              self.makeBasisMatrix(j, Xs).T)
-            k = k + nn
+            out[range(k, nn + k), :] = np.dot(
+                self.samples.beta[mcmc_use_j, 0:(self.samples.nbasis_models[j] + 1)],
+                self.makeBasisMatrix(j, Xs).T
+            )
+            k += nn
         if nugget:
-            out = out + np.random.normal(size=[len(Xs), len(mcmc_use)], scale=np.sqrt(self.samples.s2[mcmc_use])).T
+            out += np.random.normal(
+                size=[len(Xs), len(mcmc_use)],
+                scale=np.sqrt(self.samples.s2[mcmc_use])
+            ).T
         return out
 
 
-def bass(xx, y, nmcmc=10000, nburn=9000, thin=1, w1=5, w2=5, maxInt=3, maxBasis=1000, npart=None, g1=0, g2=0,
-         s2_lower=0, h1=10, h2=10, a_tau=0.5, b_tau=None, verbose=True):
+def bass(xx, y, nmcmc=10000, nburn=9000, thin=1, w1=5, w2=5, maxInt=3,
+         maxBasis=1000, npart=None, g1=0, g2=0, s2_lower=0, h1=10, h2=10,
+         a_tau=0.5, b_tau=None, verbose=True):
     """
     **Bayesian Adaptive Spline Surfaces - model fitting**
 
@@ -656,7 +653,7 @@ class PoolBass(object):
       out = pool.map(self, range(nrow_y))
       return out
 
-   def __call__(self, i):   
+   def __call__(self, i):
      return self.rowbass(i)
 
 class PoolBassPredict(object):
@@ -674,7 +671,7 @@ class PoolBassPredict(object):
       out = pool.map(self, range(nlist))
       return out
 
-   def __call__(self, i):   
+   def __call__(self, i):
      return self.listpredict(i)
 
 

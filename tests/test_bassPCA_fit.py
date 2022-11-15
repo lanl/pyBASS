@@ -25,6 +25,7 @@ def test_bassPCA_fit():
 
     # Root mean squred error
     rmse = np.sqrt(np.mean((pred.mean(0) - ftest) ** 2))
+    print("RMSE: ", rmse)
 
     # Test that RMSE is less than 0.05 for this model, which should be the case
     # from previous tests.
