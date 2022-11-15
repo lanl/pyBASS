@@ -180,10 +180,7 @@ class BassData:
         self.y = y
         self.ssy = sum(y * y)
         self.n, self.p = xx.shape
-        self.bounds = np.column_stack([
-            np.min(xx, axis=1),
-            np.max(xx, axis=1)
-        ])
+        self.bounds = np.column_stack([xx.min(0), xx.max(0)])
         self.xx = normalize(self.xx_orig, self.bounds)
         return
 
@@ -528,25 +525,27 @@ class BassModel:
 
     def makeBasisMatrix(self, model_ind, X):
         """Make basis matrix for model"""
-        nb = self.samples.nbasis_models[model_ind]
-        n = len(X)
-        mat = np.zeros([n, nb + 1])
-        mat[:, 0] = 1
-        for m in range(nb):
-            ind = list(range(self.samples.n_int[model_ind, m]))
-            mat[:, m + 1] = makeBasis(self.samples.signs[model_ind, m, ind], self.samples.vs[model_ind, m, ind],
-                                      self.samples.knots[model_ind, m, ind], X).reshape(n)
-        return mat
-        # mat = np.column_stack([
-        #     makeBasis(
-        #         self.samples.signs[model_ind, m, ind[m]],
-        #         self.samples.vs[model_ind, m, ind[m]],
-        #         self.samples.knots[model_ind, m, ind[m]],
-        #         X
-        #     ).squeeze()
-        #     for m in range(nb)
-        # ])
-        # return np.column_stack([np.ones(n), mat])
+        # nb = self.samples.nbasis_models[model_ind]
+        # n = len(X)
+        # mat = np.zeros([n, nb + 1])
+        # mat[:, 0] = 1
+        # for m in range(nb):
+        #     ind = list(range(self.samples.n_int[model_ind, m]))
+        #     mat[:, m + 1] = makeBasis(self.samples.signs[model_ind, m, ind], self.samples.vs[model_ind, m, ind],
+        #                               self.samples.knots[model_ind, m, ind], X).reshape(n)
+        # return mat
+
+        ind = [np.arange(i) for i in self.samples.n_int[model_ind]]
+        mat = np.column_stack([
+            makeBasis(
+                self.samples.signs[model_ind, m, i],
+                self.samples.vs[model_ind, m, i],
+                self.samples.knots[model_ind, m, i],
+                X
+            ).squeeze()
+            for m, i in enumerate(ind)
+        ])
+        return np.column_stack([np.ones(n), mat])
 
 
     def predict(self, X, mcmc_use=None, nugget=False):
