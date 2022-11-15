@@ -529,17 +529,25 @@ class BassModel:
     def makeBasisMatrix(self, model_ind, X):
         """Make basis matrix for model"""
         nb = self.samples.nbasis_models[model_ind]
-        ind = [np.arange(self.samples.n_int[model_ind, m]) for m in range(nb)]
-        mat = np.column_stack([
-            makeBasis(
-                self.samples.signs[model_ind, m, ind[m]],
-                self.samples.vs[model_ind, m, ind[m]],
-                self.samples.knots[model_ind, m, ind[m]],
-                X
-            ).squeeze()
-            for m in range(nb)
-        ])
-        return np.column_stack([np.ones(n), mat])
+        n = len(X)
+        mat = np.zeros([n, nb + 1])
+        mat[:, 0] = 1
+        for m in range(nb):
+            ind = list(range(self.samples.n_int[model_ind, m]))
+            mat[:, m + 1] = makeBasis(self.samples.signs[model_ind, m, ind], self.samples.vs[model_ind, m, ind],
+                                      self.samples.knots[model_ind, m, ind], X).reshape(n)
+        return mat
+        # mat = np.column_stack([
+        #     makeBasis(
+        #         self.samples.signs[model_ind, m, ind[m]],
+        #         self.samples.vs[model_ind, m, ind[m]],
+        #         self.samples.knots[model_ind, m, ind[m]],
+        #         X
+        #     ).squeeze()
+        #     for m in range(nb)
+        # ])
+        # return np.column_stack([np.ones(n), mat])
+
 
     def predict(self, X, mcmc_use=None, nugget=False):
         """
@@ -554,7 +562,7 @@ class BassModel:
             columns corresponding to prediction points.
         """
         if X.ndim == 1:
-            X = X[:, None]
+            X = X[None, :] # correct?
         
         Xs = normalize(X, self.data.bounds)
         if np.any(mcmc_use == None):

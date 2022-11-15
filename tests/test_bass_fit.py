@@ -4,8 +4,10 @@ import numpy as np
 def test_bass_fit():
     # Friedman function (Friedman, 1991, Multivariate Adaptive Regression Splines)
     def f(x):
-        return (10. * np.sin(np.pi * x[:, 0] * x[:, 1]) + 20. * (x[:, 2] - .5) ** 2
-                + 10 * x[:, 3] + 5. * x[:, 4])
+        return (
+            10. * np.sin(np.pi * x[:, 0] * x[:, 1]) + 20. * 
+            (x[:, 2] - .5) ** 2 + 10 * x[:, 3] + 5. * x[:, 4]
+        )
 
     # Set random seed for reproducibility.
     np.random.seed(0)
@@ -14,7 +16,7 @@ def test_bass_fit():
     n = 500  # sample size
     p = 10  # number of predictors (only 5 are used)
     x = np.random.rand(n, p)  # predictors (training set)
-    y = f(x) + np.random.randn(n) * 0.1  # response (training set) with noise.
+    y = np.random.normal(f(x), 0.1)  # response (training set) with noise.
 
     # fit BASS model with RJMCMC
     mod = pb.bass(x, y, nmcmc=10000, nburn=9000)
