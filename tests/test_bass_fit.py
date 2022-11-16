@@ -1,5 +1,6 @@
 import pyBASS as pb
 import numpy as np
+from .util import rootmeansqerror
 
 def test_bass_fit():
     # Friedman function (Friedman, 1991, Multivariate Adaptive Regression Splines)
@@ -29,7 +30,7 @@ def test_bass_fit():
     ynew = f(xnew)
 
     # Root mean squred error
-    rmse = np.sqrt(np.mean((pred.mean(0) - ynew) ** 2))
+    rmse = rootmeansqerror(pred.mean(0), ynew)
     print("RMSE: ", rmse)
 
     # Test that RMSE is less than 0.1 for this model, which should be the case
