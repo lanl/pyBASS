@@ -552,7 +552,7 @@ class BassModel:
             columns corresponding to prediction points.
         """
         if X.ndim == 1:
-            X = X[:, None]
+            X = X[None, :]  # should this be `X[:, None]`?
 
         Xs = normalize(X, self.data.bounds)
         if np.any(mcmc_use == None):
