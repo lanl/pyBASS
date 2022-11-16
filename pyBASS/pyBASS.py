@@ -571,8 +571,8 @@ class BassModel:
             k += nn
         if nugget:
             out += np.random.normal(
-                size=[len(Xs), len(mcmc_use)],
-                scale=np.sqrt(self.samples.s2[mcmc_use])
+                scale=np.sqrt(self.samples.s2[mcmc_use]),
+                size=[len(Xs), len(mcmc_use)]
             ).T
         return out
 
@@ -811,7 +811,7 @@ class BassPCAsetup:
         self.basis = np.dot(U, np.diag(s))
         self.newy = V
         return
-    
+
     def plot(self, npc=None, percVar=None):
         """
         Plot of principal components, eigenvalues
@@ -901,12 +901,11 @@ if __name__ == '__main__':
 
     if False:
         def f(x):
-            out = 10. * np.sin(2*np.pi * x[:, 0] * x[:, 1]) + 20. * (x[:, 2] - .5) ** 2 + 10 * x[:, 3] + 5. * x[:, 4]
-            return out
+            return (10 * np.sin(2 * np.pi * x[:, 0] * x[:, 1]) +
+                    20 * (x[:, 2] - .5) ** 2 +
+                    10 * x[:, 3] + 5 * x[:, 4])
 
-
-        n = 500
-        p = 10
+        n, p = 500, 10
         x = np.random.rand(n, p)
         xx = np.random.rand(1000, p)
         y = f(x) + np.random.normal(size=n)
@@ -920,13 +919,12 @@ if __name__ == '__main__':
 
     if False:
         def f2(x):
-            out = 10. * np.sin(np.pi * tt * x[1]) + 20. * (x[2] - .5) ** 2 + 10 * x[3] + 5. * x[4]
-            return out
-
+            return (10 * np.sin(np.pi * tt * x[1]) +
+                    20 * (x[2] - .5) ** 2 +
+                    10 * x[3] + 5 * x[4])
 
         tt = np.linspace(0, 1, 50)
-        n = 500
-        p = 9
+        n, p = 500, 9
         x = np.random.rand(n, p) - .5
         xx = np.random.rand(1000, p) - .5
         e = np.random.normal(size=n * len(tt))
