@@ -1,5 +1,6 @@
 import pyBASS as pb
 import numpy as np
+from .util import rootmeansqerror
 
 def test_bassPCA_fit():
     # Friedman function with functional response
@@ -24,7 +25,8 @@ def test_bassPCA_fit():
     pred = mod.predict(xx, nugget=True)
 
     # Root mean squred error
-    rmse = np.sqrt(np.mean((pred.mean(0) - ftest) ** 2))
+    rmse = rootmeansqerror(pred.mean(0), ftest)
+    print("RMSE: ", rmse)
 
     # Test that RMSE is less than 0.05 for this model, which should be the case
     # from previous tests.

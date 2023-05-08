@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright 2020. Triad National Security, LLC. All rights reserved.
-This program was produced under U.S. Government contract 89233218CNA000001 for Los Alamos
-National Laboratory (LANL), which is operated by Triad National Security, LLC for the U.S.
-Department of Energy/National Nuclear Security Administration. All rights in the program are
-reserved by Triad National Security, LLC, and the U.S. Department of Energy/National Nuclear
-Security Administration. The Government is granted for itself and others acting on its behalf a
-nonexclusive, paid-up, irrevocable worldwide license in this material to reproduce, prepare
-derivative works, distribute copies to the public, perform publicly and display publicly, and to permit
-others to do so.
+Copyright 2020. Triad National Security, LLC. All rights reserved.  This program
+was produced under U.S. Government contract 89233218CNA000001 for Los Alamos
+National Laboratory (LANL), which is operated by Triad National Security, LLC
+for the U.S.  Department of Energy/National Nuclear Security Administration. All
+rights in the program are reserved by Triad National Security, LLC, and the U.S.
+Department of Energy/National Nuclear Security Administration. The Government is
+granted for itself and others acting on its behalf a nonexclusive, paid-up,
+irrevocable worldwide license in this material to reproduce, prepare derivative
+works, distribute copies to the public, perform publicly and display publicly,
+and to permit others to do so.
 
 LANL software release C19112
 Author: Devin Francom
@@ -178,12 +179,8 @@ class BassData:
         self.xx_orig = xx
         self.y = y
         self.ssy = sum(y * y)
-        self.n = len(xx)
-        self.p = len(xx[0])
-        self.bounds = np.zeros([self.p, 2])
-        for i in range(self.p):
-            self.bounds[i, 0] = np.min(xx[:, i])
-            self.bounds[i, 1] = np.max(xx[:, i])
+        self.n, self.p = xx.shape
+        self.bounds = np.column_stack([xx.min(0), xx.max(0)])
         self.xx = normalize(self.xx_orig, self.bounds)
         return
 
@@ -529,14 +526,18 @@ class BassModel:
     def makeBasisMatrix(self, model_ind, X):
         """Make basis matrix for model"""
         nb = self.samples.nbasis_models[model_ind]
-        n = len(X)
-        mat = np.zeros([n, nb + 1])
-        mat[:, 0] = 1
-        for m in range(nb):
-            ind = list(range(self.samples.n_int[model_ind, m]))
-            mat[:, m + 1] = makeBasis(self.samples.signs[model_ind, m, ind], self.samples.vs[model_ind, m, ind],
-                                      self.samples.knots[model_ind, m, ind], X).reshape(n)
-        return mat
+        ind_list = [np.arange(self.samples.n_int[model_ind, m]) for m in range(nb)]
+        mat = np.column_stack([
+            makeBasis(
+                self.samples.signs[model_ind, m, ind],
+                self.samples.vs[model_ind, m, ind],
+                self.samples.knots[model_ind, m, ind],
+                X
+            ).squeeze()
+            for m, ind in enumerate(ind_list)
+        ])
+        return np.column_stack([np.ones(len(X)), mat])
+
 
     def predict(self, X, mcmc_use=None, nugget=False):
         """
@@ -550,9 +551,9 @@ class BassModel:
         :return: a matrix (numpy array) of predictions with dimension mxn, with rows corresponding to MCMC samples and
             columns corresponding to prediction points.
         """
-        if len(X.shape)==1:
+        if X.ndim == 1:
             X = X[None, :]
-        
+
         Xs = normalize(X, self.data.bounds)
         if np.any(mcmc_use == None):
             mcmc_use = np.array(range(self.nstore))
@@ -563,16 +564,22 @@ class BassModel:
         for j in umodels:
             mcmc_use_j = mcmc_use[np.ix_(models == j)]
             nn = len(mcmc_use_j)
-            out[range(k, nn + k), :] = np.dot(self.samples.beta[mcmc_use_j, 0:(self.samples.nbasis_models[j] + 1)],
-                                              self.makeBasisMatrix(j, Xs).T)
-            k = k + nn
+            out[range(k, nn + k), :] = np.dot(
+                self.samples.beta[mcmc_use_j, 0:(self.samples.nbasis_models[j] + 1)],
+                self.makeBasisMatrix(j, Xs).T
+            )
+            k += nn
         if nugget:
-            out = out + np.random.normal(size=[len(Xs), len(mcmc_use)], scale=np.sqrt(self.samples.s2[mcmc_use])).T
+            out += np.random.normal(
+                scale=np.sqrt(self.samples.s2[mcmc_use]),
+                size=[len(Xs), len(mcmc_use)]
+            ).T
         return out
 
 
-def bass(xx, y, nmcmc=10000, nburn=9000, thin=1, w1=5, w2=5, maxInt=3, maxBasis=1000, npart=None, g1=0, g2=0,
-         s2_lower=0, h1=10, h2=10, a_tau=0.5, b_tau=None, verbose=True):
+def bass(xx, y, nmcmc=10000, nburn=9000, thin=1, w1=5, w2=5, maxInt=3,
+         maxBasis=1000, npart=None, g1=0, g2=0, s2_lower=0, h1=10, h2=10,
+         a_tau=0.5, b_tau=None, verbose=True):
     """
     **Bayesian Adaptive Spline Surfaces - model fitting**
 
@@ -646,7 +653,7 @@ class PoolBass(object):
       out = pool.map(self, range(nrow_y))
       return out
 
-   def __call__(self, i):   
+   def __call__(self, i):
      return self.rowbass(i)
 
 class PoolBassPredict(object):
@@ -664,7 +671,7 @@ class PoolBassPredict(object):
       out = pool.map(self, range(nlist))
       return out
 
-   def __call__(self, i):   
+   def __call__(self, i):
      return self.listpredict(i)
 
 
@@ -804,7 +811,7 @@ class BassPCAsetup:
         self.basis = np.dot(U, np.diag(s))
         self.newy = V
         return
-    
+
     def plot(self, npc=None, percVar=None):
         """
         Plot of principal components, eigenvalues
@@ -894,12 +901,11 @@ if __name__ == '__main__':
 
     if False:
         def f(x):
-            out = 10. * np.sin(2*np.pi * x[:, 0] * x[:, 1]) + 20. * (x[:, 2] - .5) ** 2 + 10 * x[:, 3] + 5. * x[:, 4]
-            return out
+            return (10 * np.sin(2 * np.pi * x[:, 0] * x[:, 1]) +
+                    20 * (x[:, 2] - .5) ** 2 +
+                    10 * x[:, 3] + 5 * x[:, 4])
 
-
-        n = 500
-        p = 10
+        n, p = 500, 10
         x = np.random.rand(n, p)
         xx = np.random.rand(1000, p)
         y = f(x) + np.random.normal(size=n)
@@ -913,13 +919,12 @@ if __name__ == '__main__':
 
     if False:
         def f2(x):
-            out = 10. * np.sin(np.pi * tt * x[1]) + 20. * (x[2] - .5) ** 2 + 10 * x[3] + 5. * x[4]
-            return out
-
+            return (10 * np.sin(np.pi * tt * x[1]) +
+                    20 * (x[2] - .5) ** 2 +
+                    10 * x[3] + 5 * x[4])
 
         tt = np.linspace(0, 1, 50)
-        n = 500
-        p = 9
+        n, p = 500, 9
         x = np.random.rand(n, p) - .5
         xx = np.random.rand(1000, p) - .5
         e = np.random.normal(size=n * len(tt))
