@@ -526,17 +526,26 @@ class BassModel:
     def makeBasisMatrix(self, model_ind, X):
         """Make basis matrix for model"""
         nb = self.samples.nbasis_models[model_ind]
-        ind_list = [np.arange(self.samples.n_int[model_ind, m]) for m in range(nb)]
-        mat = np.column_stack([
-            makeBasis(
-                self.samples.signs[model_ind, m, ind],
-                self.samples.vs[model_ind, m, ind],
-                self.samples.knots[model_ind, m, ind],
-                X
-            ).squeeze()
-            for m, ind in enumerate(ind_list)
-        ])
-        return np.column_stack([np.ones(len(X)), mat])
+        #ind_list = [np.arange(self.samples.n_int[model_ind, m]) for m in range(nb)]
+        #mat = np.column_stack([
+        #    makeBasis(
+        #        self.samples.signs[model_ind, m, ind],
+        #        self.samples.vs[model_ind, m, ind],
+        #        self.samples.knots[model_ind, m, ind],
+        #        X
+        #    ).squeeze()
+        #    for m, ind in enumerate(ind_list)
+        #])
+        #return np.column_stack([np.ones(len(X)), mat])
+    
+        n = len(X)
+        mat = np.zeros([n, nb + 1])
+        mat[:, 0] = 1
+        for m in range(nb):
+            ind = list(range(self.samples.n_int[model_ind, m]))
+            mat[:, m + 1] = makeBasis(self.samples.signs[model_ind, m, ind], self.samples.vs[model_ind, m, ind],
+                                      self.samples.knots[model_ind, m, ind], X).reshape(n)
+        return mat
 
 
     def predict(self, X, mcmc_use=None, nugget=False):
