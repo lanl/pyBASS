@@ -1003,36 +1003,38 @@ class sobolBasis:
 
         n_pc = self.mod.nbasis
 
-        w0 = [self.get_f0(pc_mod,x) for x in range(n_pc)]
-        w0 = np.array(w0)
+        w0 = np.zeros(n_pc)
+        for i in range(n_pc):
+            w0[i] = self.get_f0(pc_mod,i)
         
         f0r2 = (pcs@w0)**2
 
-        tmp = [pc_mod[x].samples.nbasis[mcmc_use] for x in range(n_pc)]
+        tmp = [pc_mod[x].samples.nbasis[self.mcmc_use] for x in range(n_pc)]
         max_nbasis = max(tmp)
 
         C1Basis_array = np.zeros((n_pc,p,max_nbasis))
         for i in range(n_pc):
-            nb = pc_mod[i].samples.nbasis[mcmc_use]
-            mcmc_mod_usei = pc_mod[i].model_lookup[mcmc_use]
+            nb = pc_mod[i].samples.nbasis[self.mcmc_use]
+            mcmc_mod_usei = pc_mod[i].model_lookup[self.mcmc_use]
             for j in range(p):
                 for k in range(nb):
-                    C1Basis_array[i,j,k] = self.C1Basis(pc_mod, j, k, i, mcmc_mod_usei)
+                    C1Basis_array[i,j,k] = self.C1Basis(pc_mod, j+1, k, i, mcmc_mod_usei)
         
         u_list1 = []
         for i in range(int_order):
-            u_list1.append(u_list[i].split(u_list[i].shape[2],1))
+            u_list1.extend(u_list[i])
         
         toc = time.perf_counter()
-        print('Integrating: %0.2fs\n' % (tic-toc))
+        print('Integrating: %0.2fs\n' % (toc-tic))
 
-        u_list_temp = [np.arange(0,p), u_list1]
+        u_list_temp = u_list1
+        u_list_temp.insert(0,list(np.arange(0,p)))
 
         if ncores > 1:
-            # @todo right parallel version
+            # @todo write parallel version
             NameError('Parallel not Implemented\n')
         else:
-            ints1_temp = [self.func_hat(x,pc_mod,pcs,mcmc_use,f0r2,C1Basis_array) for x in u_list_temp]
+             ints1_temp = [self.func_hat(x,pc_mod,pcs,mcmc_use,f0r2,C1Basis_array) for x in u_list_temp]
         
         V_tot = ints1_temp[0]
         ints1 = ints1_temp[1:]
@@ -1054,7 +1056,7 @@ class sobolBasis:
         sob = []
         sob.append(ints[1])
         toc = time.perf_counter()
-        print('Shuffling: %0.2fs\n' % (tic-toc))
+        print('Shuffling: %0.2fs\n' % (toc-tic))
 
         if u_list.shape[0] > 1:
             for i in range(1,u_list.shape[0]):
@@ -1106,7 +1108,7 @@ class sobolBasis:
         names_ind1 = names_ind1[use]
 
         toc = time.perf_counter()
-        print('Finish: %0.2fs\n', (tic-toc))
+        print('Finish: %0.2fs\n', (toc-tic))
 
         self.S = sob_comb
         self.S_var = sob_comb_var
@@ -1295,49 +1297,49 @@ class sobolBasis:
         res = np.zeros(pcs.shape[0])
         n_pc = len(pc_mod)
         for i in range(n_pc):
-            res += pcs[:,i]**2*self.Ccross(pc_mod,i,i,u,mcmc_use,C1Basis_array)
+            res += pcs[:,i]**2*self.Ccross(pc_mod,i,i,u,C1Basis_array)
 
             if (i+1) < n_pc:
                 for j in range(i+1,n_pc):
-                    res = res + 2 * pcs[:,i]*pcs[:,j] * self.Ccross(pc_mod,i,j,u,mcmc_use,C1Basis_array)
+                    res = res + 2 * pcs[:,i]*pcs[:,j] * self.Ccross(pc_mod,i,j,u,C1Basis_array)
 
         out = res - f0r2
 
         return out
 
-    def Ccross(self,pc_mod,i,j,u,mcmc_use,C1Basis_array):
+    def Ccross(self,pc_mod,i,j,u,C1Basis_array):
         p = pc_mod[0].data.p
-        mcmc_mod_usei = pc_mod[i].model_lookup[mcmc_use]
-        mcmc_mod_usej = pc_mod[j].model_lookup[mcmc_use]
+        mcmc_mod_usei = pc_mod[i].model_lookup[self.mcmc_use]
+        mcmc_mod_usej = pc_mod[j].model_lookup[self.mcmc_use]
 
-        Mi = pc_mod[i].samples.nbasis[mcmc_use]
-        Mj = pc_mod[j].samples.nbasis[mcmc_use]
+        Mi = pc_mod[i].samples.nbasis[self.mcmc_use]
+        Mj = pc_mod[j].samples.nbasis[self.mcmc_use]
 
-        a0i = pc_mod[i].samples.beta[mcmc_use]
-        a0j = pc_mod[j].samples.beta[mcmc_use]
-        f0i = self.get_f0(pc_mod,i,mcmc_use)
-        f0j = self.get_f0(pc_mod,j,mcmc_use)
+        a0i = pc_mod[i].samples.beta[self.mcmc_use,0]
+        a0j = pc_mod[j].samples.beta[self.mcmc_use,0]
+        f0i = self.get_f0(pc_mod,i)
+        f0j = self.get_f0(pc_mod,j)
 
         out = a0i*a0j + a0i*(f0j-a0j) + a0j*(f0i-a0i)
 
         if (Mi > 0 and Mj > 0):
-            ai = pc_mod[i].samples.beta[mcmc_use,1:Mi]
-            aj = pc_mod[j].samples.beta[mcmc_use,1:Mi]
+            ai = pc_mod[i].samples.beta[self.mcmc_use,1:(Mi+1)]
+            aj = pc_mod[j].samples.beta[self.mcmc_use,1:(Mj+1)]
         
         for mi in range(Mi):
             for mj in range(Mj):
                 temp1 = ai[mi]*aj[mj]
                 temp2 = 1
                 temp3 = 1
-                idx = np.arange(1,p)
+                idx = np.arange(0,p)
                 idx2 = u
-                del idx[idx2]
+                idx = np.delete(idx,idx2)
 
                 for l in idx:
                     temp2 = temp2 * C1Basis_array[i,l,mi]*C1Basis_array[j,l,mj]
                 
-                for l in idx:
-                    temp3 = temp3 * self.C2Basis(pc_mod,l,mi,mj,i,j,mcmc_mod_usei,mcmc_mod_usej)
+                for l in idx2:
+                    temp3 = temp3 * self.C2Basis(pc_mod,l+1,mi,mj,i,j,mcmc_mod_usei,mcmc_mod_usej)
                 
                 out += temp1*temp2*temp3
         
@@ -1347,8 +1349,8 @@ class sobolBasis:
     def C2Basis(self,pc_mod,l,m1,m2,pc1,pc2,mcmc_mod_use1,mcmc_mod_use2):
 
         if (l <= pc_mod[pc1].data.p):
-            int_use_l1 = np.where(pc_mod[pc1].samples.vs[mcmc_mod_use1,m1,:]==l)
-            int_use_l2 = np.where(pc_mod[pc2].samples.vs[mcmc_mod_use2,m2,:]==l)
+            int_use_l1 = np.where(pc_mod[pc1].samples.vs[mcmc_mod_use1,m1,:]==l)[0]
+            int_use_l2 = np.where(pc_mod[pc2].samples.vs[mcmc_mod_use2,m2,:]==l)[0]
 
             if int_use_l1.size == 0 and int_use_l2.size == 0:
                 out = 1
@@ -1359,7 +1361,7 @@ class sobolBasis:
                 return out
             
             if int_use_l2.size == 0:
-                out = self.C1Basis(pc_mod, l,m1,pc1,mcmc_mod_use1)
+                out = self.C1Basis(pc_mod,l,m1,pc1,mcmc_mod_use1)
                 return out
             
             q = 1
@@ -1376,11 +1378,11 @@ class sobolBasis:
                 s1 = s2
                 s2 = temp
             
-            out = self.C22Basis(prior[l],t1,t2,s1,s2,q)
+            out = self.C22Basis(self.prior[l-1],t1,t2,s1,s2,q)
 
         return out
     
-    def C11Basis(self,prior,t1,t2,s1,s2,q):
+    def C22Basis(self,prior,t1,t2,s1,s2,q):
         cc = const(np.array([s1,s2]), np.array([t1,t2]))
         out = 0
         if (s1*s2) == 0:
@@ -1434,7 +1436,7 @@ class sobolBasis:
                 out += prior['weights'][k] * int
         
         if prior['dist'] == 'uniform':
-            out = (np.sum(self.pCoef(np.arange(0,q),q)*(b-t1)**(q-np.arange(0,q))*(b-t2)**(q+1+np.arange(0,q))) - np.sum(self.pCoef(np.arange(0,q),q)*(a-t1)**(q-np.arange(0,q))*(a-t2)**(q+1+np.arange(0,q)))) * 1/(prior['trunc'][1]-prior['trunc'][0])
+            out = (np.sum(self.pCoef(np.arange(0,q+1),q)*(b-t1)**(q-np.arange(0,q+1))*(b-t2)**(q+1+np.arange(0,q+1))) - np.sum(self.pCoef(np.arange(0,q+1),q)*(a-t1)**(q-np.arange(0,q+1))*(a-t2)**(q+1+np.arange(0,q+1)))) * 1/(prior['trunc'][1]-prior['trunc'][0])
         
         return out
     
