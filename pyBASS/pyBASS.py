@@ -22,6 +22,7 @@ from scipy import stats
 import matplotlib.pyplot as plt
 from itertools import combinations, chain
 from scipy.special import comb
+import itertools
 from collections import namedtuple
 #from pathos.multiprocessing import ProcessingPool as Pool
 from multiprocessing import Pool
@@ -35,6 +36,13 @@ def abline(slope, intercept):
     y_vals = intercept + slope * x_vals
     plt.plot(x_vals, y_vals, '--', color='red')
 
+
+def ismember(a, b):
+    bind = {}
+    for i, elt in enumerate(b):
+        if elt not in bind:
+            bind[elt] = i
+    return [bind.get(itm, None) for itm in a]  # None can be replaced by any other "not in b" value
 
 pos = lambda a: (abs(a) + a) / 2 # same as max(0,a)
 
@@ -903,4 +911,470 @@ def bassPCA(xx, y, npc=None, percVar=99.9, ncores=1, center=True, scale=False, *
     return BassBasis(xx, y, basis, newy, setup.y_mean, setup.y_sd, trunc_error, ncores, **kwargs)
 
 
+class sobolBasis:
+    """
+    Decomposes the variance of the BASS model into variance due to the main effects, two way
+    interactions, and so on, similar to the ANOVA decoposition for linear models.
+
+    Uses the Sobol' decomposition, which can be done analytically for MARS-type models. This is for
+    the Basis class
+
+    :param mod: BassBasis model
+
+    :return: object with plot method.
+    """
+    def __init__(self, mod: BassBasis):
+        self.mod = mod
+        return
+    
+    def decomp(self, int_order, prior=None, mcmc_use=None, nind=None, ncores=1):
+        """
+        Perform Sobol Decomp
+
+        :param int_order: an integer indicating the highest order of interactions to include in the Sobol decomposition.
+        :param prior:  a list with the same number of elements as there are inputs to mod.
+                       Each element specifies the prior for the particular input.  Each prior is specified as a
+                       dictionary with elements (one of "normal", "student", or "uniform"), "trunc" (a vector of dimension 2
+                       indicating the lower and upper truncation bounds, taken to be the data bounds if omitted), and for "normal"
+                       or "student" priors, "mean" (scalar mean of the Normal/Student, or a vector of means for a mixture of
+                       Normals or Students), "sd" (scalar standard deviation of the Normal/Student, or a vector of standard
+                       deviations for a mixture of Normals or Students), "df" (scalar degrees of freedom of the Student,
+                       or a vector of degrees of freedom for a mixture of Students), and "weights" (a vector of weights that
+                       sum to one for the mixture components, or the scalar 1).  If unspecified, a uniform is assumed with the same
+                       bounds as are represented in the input to mod.
+        :param mcmc_use: an integer indicating which MCMC iteration to use for sensitivity analysis. Defaults to the last iteration.
+        :param nind: number of Sobol indices to keep (will keep the largest nind).
+        :param ncores: number of cores to use (default = 1)
+        """
+        self.int_order = int_order
+        if mcmc_use == None:
+            self.mcmc_use = self.mod.bm_list[0].samples.s2.shape[0]
+        else:
+            self.mcmc_use = mcmc_use
+        self.nind = nind
+        self.ncores = ncores
+
+        bassMod = self.mod.bm_list[0]
+
+        if prior == None:
+            self.prior = []
+        else:
+            self.prior = prior 
+        
+        p = bassMod.data.p
+
+        if len(prior) < p:
+            for i in range(len(prior)+1,p):
+                tmp = {'dist':'uniform','trunc':None}
+                prior.append(tmp)
+        
+        for i in range(len(prior)):
+            if prior[i]['trunc'] == None:
+                prior[i]['trunc'] = np.array([0,1])
+            else:
+                prior[i]['trunc'] = normalize(prior[i]['trunc'], bassMod.data.bounds[:,i])
+            
+            if prior[i]['dist'] == 'normal' or prior[i]['dist'] == 'student':
+                prior[i]['mean'] = normalize(prior[i]['mean'], bassMod.data.bounds[:,i])
+                prior[i]['sd'] = prior[i]['sd']/(bassMod.data.bounds[1,i]-bassMod.data.bounds[0,i])
+                if prior[i]['dist'] == 'normal':
+                    prior[i]['z'] = stats.norm.pdf((prior[i]['trunc'][1]-prior[i]['mean'])/prior[i]['sd']) - stats.norm.pdf((prior[i]['trunc'][0]-prior[i]['mean'])/prior[i]['sd'])
+                else:
+                    prior[i]['z'] = stats.t.pdf((prior[i]['trunc'][1]-prior[i]['mean'])/prior[i]['sd'], prior[i]['df']) - stats.t.pdf((prior[i]['trunc'][0]-prior[i]['mean'])/prior[i]['sd'], prior[i]['df'])
+                
+                cc = (prior[i]['weights']*prior[i]['z']).sum()
+                prior[i]['weights'] = prior[i]['weights']/cc
+            
+        pc_mod = self.mod.bm_list
+        pcs = self.mod.basis
+
+        tic = time.perf_counter()
+        print('Start\n')
+        
+        if int_order > p:
+            self.int_order = p
+            print('int_order > number of inputs, chnage to int_order = number of input\n')
+        
+        u_list = u_list = [list(itertools.combinations(range(1,p+1), x)) for x in range(1,int_order+1)]
+        ncombs_vec = [len(x) for x in u_list]
+        ncombs = sum(ncombs_vec)
+        nxfunc = pcs.shape[0]
+
+        n_pc = self.mod.nbasis
+
+        w0 = [self.get_f0(pc_mod,x,mcmc_use) for x in range(1,n_pc+1)]
+        w0 = np.array(w0)
+        
+        f0r2 = (pcs@w0)**2
+
+        tmp = [pc_mod[x].samples.nbasis[mcmc_use] for x in range(n_pc)]
+        max_nbasis = max(tmp)
+
+        C1Basis_array = np.zeros((n_pc,p,max_nbasis))
+        for i in range(n_pc):
+            nb = pc_mod[i].samples.nbasis[mcmc_use]
+            mcmc_mod_usei = pc_mod[i].model_lookup[mcmc_use]
+            for j in range(p):
+                for k in range(nb):
+                    C1Basis_array[i,j,k] = self.C1Basis(pc_mod, j, k, i, mcmc_mod_usei)
+        
+        u_list1 = []
+        for i in range(int_order):
+            u_list1.append(u_list[i].split(u_list[i].shape[2],1))
+        
+        toc = time.perf_counter()
+        print('Integrating: %0.2fs\n' % (tic-toc))
+
+        u_list_temp = [np.arange(0,p), u_list1]
+
+        if ncores > 1:
+            # @todo right parallel version
+            NameError('Parallel not Implemented\n')
+        else:
+            ints1_temp = [self.func_hat(x,pc_mod,pcs,mcmc_use,f0r2,C1Basis_array) for x in u_list_temp]
+        
+        V_tot = ints1_temp[0]
+        ints1 = ints1_temp[1:]
+        
+        ints = []
+        ints.append(np.zeros((ints1[0].shape[0], u_list[0].shape[0])))
+        for i in range(u_list[0].shape[0]):
+            ints[0][:,i] = ints1[i]
+        
+        if int_order > 1:
+            for i in range(2,int_order):
+                idx = np.sum(ncombs_vec[0:(i-1)])+np.arange(1,u_list[i].shape[0])
+                ints[i] = np.zeros((ints1[0].shape[0], idx.shape[0]))
+                cnt = 0
+                for j in idx:
+                    ints[i][:,cnt] = ints1[j]
+                    cnt += 1
+        
+        sob = []
+        sob.append(ints[1])
+        toc = time.perf_counter()
+        print('Shuffling: %0.2fs\n' % (tic-toc))
+
+        if u_list.shape[0] > 1:
+            for i in range(1,u_list.shape[0]):
+                sob[i] = np.zeros((nxfunc,ints[i].shape[1]))
+                for j in range(u_list[i].shape[0]):
+                    cc = np.zeros(nxfunc)
+                    for k in range(i-1):
+                        ind = [np.all(ismember(x,u_list[i][j,:])) for x in u_list[k]]
+                        cc += (-1)**(i-k)*np.sum(ints[k][:,ind],axis=1)
+                    sob[i][:,j] = ints[i][:,j] + cc
+        
+        if np.isnan(nind):
+            nind = ncombs
+        
+        sob_comb_var = np.concatenate((2, sob))
+
+        vv = np.mean(sob_comb_var,axis=0)
+        ord = vv.argsort()[::-1]
+        cutoff = vv[ord[nind]]
+        if nind > ord.shape[0]:
+            cutoff = vv.min()
+        
+        use = np.sort(np.where(vv>=cutoff))
+
+        V_other = V_tot - np.sum(sob_comb_var[:,use],axis=1)
+
+        use = np.concatenate((use, ncombs+1))
+
+        sob_comb_var = np.concatenate((sob_comb_var V_other))
+        sob_comb = ((sob_comb_var.T)/V_tot).T
+
+        sob_comb_var = sob_comb_var[use,:]
+        sob_comb = sob_comb[use,:]
+
+        names_ind1 = []
+        cnt = 0
+        for i in range(len(u_list)):
+            for j in range(u_list[i].shape[0]):
+                tmp = str(u_list[i][j,:])
+                if len(tmp) == 1:
+                    names_ind1[cnt] = tmp
+                else:
+                    tmp = tmp.split()
+                    separator = 'x'
+                    names_ind[cnt] = separator.join(tmp)
+                cnt += 1
+        
+        names_ind1[cnt] = 'other'
+        names_ind1 = names_ind1[use]
+
+        toc = time.perf_counter()
+        print('Finish: %0.2fs\n', (tic-toc))
+
+        self.S = sob_comb
+        self.S_var = sob_comb_var
+        self.Var_tot = V_tot
+        self.names_ind = names_ind1
+        self.xx = np.linspace(0,1,nxfunc)
+ 
+        return
+    
+    def get_f0(self, pc_mod, pc, mcmc_use):
+        mcmc_mod_use = pc_mod[pc].model_lookup(mcmc_use)
+        out = pc_mod[pc].samples.beta[mcmc_use,0]
+        if (pc_mod[pc].samples.nbasis(mcmc_use) > 0):
+            for m in range(pc_mod[pc].samples.nbasis(mcmc_use)):
+                out1 = pc_mod[pc].samples.nbasis[mcmc_use]
+                for l in range(pc_mod[pc].data.p):
+                    out1 = out1*self.C1Basis(pc_mod,l,m,pc,mcmc_mod_use)
+                out += out1
+        return out
+    
+
+    def C1Basis(self, pc_mod, l, m, pc, mcmc_mod_use):
+        int_use_l = np.where(pc_mod[pc].samples.vs[mcmc_mod_use,m,:]==l)
+        if int_use_l.size == 0:
+            out = 1
+            return
+
+        s = pc_mod[pc].samples.signs[mcmc_mod_use,m,int_use_l]
+        t = pc_mod[pc].samples.knots[mcmc_mod_use,m,int_use_l]
+        q = 1
+        
+        if s == 0:
+            out = 0
+            return
+        
+        cc = const(s, t)
+
+        if s == 1:
+            a = np.maximum(self.prior[l]['trunc'][0],t)
+            b = self.prior[l]['trunc'][2]
+            if b < t:
+                out = 0
+                return
+            out = self.intabq1(self.prior[l],a,b,t,q)/cc
+        else:
+            a = self.prior[l]['trunc'][0]
+            b = np.maximum(self.prior[l]['trunc'][1],t)
+            if t < a:
+                out = 0
+                return
+            out = self.intabq1(self.prior[l],a,b,t,q)*(-1)**q/cc
+        
+        return out
+    
+    def intabq1(self, prior, a, b, t, q):
+        if prior['dist'] == 'normal':
+            if q != 1:
+                NameError('degree other than 1 not supported for normal priors')
+            
+            out = 0
+            for k in range(len(prior['weights'])):
+                zk = stats.norm.pdf(b, prior['mean'][k], prior['sd'][k]) - stats.norm.pdf(a, prior['mean'][k], prior['sd'][k])
+                ast = (a-prior['mean'][k])/prior['sd'][k]
+                bst = (b-prior['mean'][k])/prior['sd'][k]
+                dnb = stats.norm.cdf(bst)
+                dna = stats.norm.cdf(ast)
+                tnorm_mean_zk = prior['mean'][k]*zk - prior['sd'][k]*(dnb-dna)
+                out += prior['weights'][k] * (tnorm_mean_zk-t*zk)
+        
+        if prior['dist'] == 'student':
+            if q != 1:
+                NameError('degree other than 1 not supported for normal priors')
+            
+            out = 0
+            for k in range(len(prior['weights'])):
+                int = self.intx1Student(b, prior['mean'][k], prior['sd'][k], prior['df'][k],t) - self.intx1Student(a, prior['mean'][k], prior['sd'][k], prior['df'][k],t)
+                out += prior['weights'][k] * int
+        
+        if prior['dist'] == 'uniform':
+            out = 1/(q+1)*((b-t)**(q+1)-(a-t)**(q+1)) * 1/(prior['trunc'][1]-prior['trunc'][0])
+        
+        return out
+
+    def intx1Student(self, x, m, s, v, t):
+        temp = (s**2*v)/(m**2 + s**2*v - 2*m*x + x**2)
+        out = -((v/(v + (m - x)**2/s^2))**(v/2) * 
+              np.sqrt(temp) * 
+              np.sqrt(1/temp) *
+              (s**2*v* (np.sqrt(1/temp) - 
+              (1/temp)**(v/2)) + 
+              (t-m)*(-1 + v)*(-m + x) * 
+              (1/temp)**(v/2) *
+              self.robust2f1(1/2,(1 + v)/2,3/2,-(m - x)**2/(s**2 *v)) )) / (s *(-1 + v)* np.sqrt(v) * sp.special.beta(v/2, 1/2))
+        
+        return out
+    
+    def robust2f1(sself,a,b,c,x):
+        if np.abs(x) < 1:
+            z = sp.special.hyp2f1(a,b,c,np.array([0,x]))
+            out = z[-1]
+        else:
+            z = sp.special.hyp2f1(a,c-b,c,0)
+            out = z[-1]
+        
+        return(out)
+    
+    def func_hat(self,u,pc_mod,pcs,mcmc_use,f0r2,C1Basis_array):
+        res = np.zeros(pcs.shape[0])
+        n_pc = len(pc_mod)
+        for i in range(n_pc):
+            res += pcs[:,i]**2*self.Ccross(pc_mod,i,i,u,mcmc_use,C1Basis_array)
+
+            if (i+1) < n_pc:
+                for j in range(i+1,n_pc):
+                    res = res + 2 * pcs[:,i]*pcs[:,j] * self.Ccross(pc_mod,i,j,u,mcmc_use,C1Basis_array)
+
+        out = res - f0r2
+
+        return out
+
+    def Ccross(self,pc_mod,i,j,u,mcmc_use,C1Basis_array):
+        p = pc_mod[0].data.p
+        mcmc_mod_usei = pc_mod[i].model_lookup[mcmc_use]
+        mcmc_mod_usej = pc_mod[j].model_lookup[mcmc_use]
+
+        Mi = pc_mod[i].samples.nbasis[mcmc_use]
+        Mj = pc_mod[j].samples.nbasis[mcmc_use]
+
+        a0i = pc_mod[i].samples.beta[mcmc_use]
+        a0j = pc_mod[j].samples.beta[mcmc_use]
+        f0i = self.get_f0(pc_mod,i,mcmc_use)
+        f0j = self.get_f0(pc_mod,j,mcmc_use)
+
+        out = a0i*a0j + a0i*(f0j-a0j) + a0j*(f0i-a0i)
+
+        if (Mi > 0 and Mj > 0):
+            ai = pc_mod[i].samples.beta[mcmc_use,1:Mi]
+            aj = pc_mod[j].samples.beta[mcmc_use,1:Mi]
+        
+        for mi in range(Mi):
+            for mj in range(Mj):
+                temp1 = ai[mi]*aj[mj]
+                temp2 = 1
+                temp3 = 1
+                idx = np.arange(1,p)
+                idx2 = u
+                del idx[idx2]
+
+                for l in idx:
+                    temp2 = temp2 * C1Basis_array[i,l,mi]*C1Basis_array[j,l,mj]
+                
+                for l in idx:
+                    temp3 = temp3 * self.C2Basis(pc_mod,l,mi,mj,i,j,mcmc_mod_usei,mcmc_mod_usej)
+                
+                out += temp1*temp2*temp3
+        
+        return out
+    
+
+    def C2Basis(self,pc_mod,l,m1,m2,pc1,pc2,mcmc_mod_use1,mcmc_mod_use2):
+
+        if (l <= pc_mod[pc1].data.p):
+            int_use_l1 = np.where(pc_mod[pc1].samples.vs[mcmc_mod_use1,m1,:]==l)
+            int_use_l2 = np.where(pc_mod[pc2].samples.vs[mcmc_mod_use2,m2,:]==l)
+
+            if int_use_l1.size == 0 and int_use_l2.size == 0:
+                out = 1
+                return out
+            
+            if int_use_l1.size == 0:
+                out = self.C1Basis(pc_mod,l,m2,pc2,mcmc_mod_use2)
+                return out
+            
+            if int_use_l2.size == 0:
+                out = self.C1Basis(pc_mod, l,m1,pc1,mcmc_mod_use1)
+                return out
+            
+            q = 1
+            s1 = pc_mod[pc1].samples.signs[mcmc_mod_use1,m1,int_use_l1]
+            s2 = pc_mod[pc2].samples.signs[mcmc_mod_use2,m2,int_use_l2]
+            t1 = pc_mod[pc1].samples.knots[mcmc_mod_use1,m1,int_use_l1]
+            t2 = pc_mod[pc2].samples.knots[mcmc_mod_use2,m2,int_use_l2]
+
+            if t2 < t1:
+                temp = t1
+                t1 = t2
+                t2 = temp
+                temp = s1
+                s1 = s2
+                s2 = temp
+            
+            out = self.C22Basis(prior[l],t1,t2,s1,s2,q)
+
+        return out
+    
+    def C11Basis(self,prior,t1,t2,s1,s2,q):
+        cc = const(np.array([s1,s2]), np.array([t1,t2]))
+        out = 0
+        if (s1*s2) == 0:
+            out = 0
+            return out
+        
+        if (s1 == 1):
+            if (s2 == 1):
+                out = self.intabq2(prior,t2,1,t1,t2,q)/cc
+                return out
+            else:
+                out = self.intabq2(prior,t1,t2,t1,t2,q)*(-1)**q/cc
+                return out
+        else:
+            if (s2 == 1):
+                out = 0
+                return out
+            else:
+                out = self.intabq2(prior,0,t1,t1,t2,q)/cc
+                return out
+            
+        return out
+    
+    def intabq2(self, prior, a, b, t1, t2, q):
+        if prior['dist'] == 'normal':
+            if q != 1:
+                NameError('degree other than 1 not supported for normal priors')
+            
+            out = 0
+            for k in range(len(prior['weights'])):
+                zk = stats.norm.pdf(b, prior['mean'][k], prior['sd'][k]) - stats.norm.pdf(a, prior['mean'][k], prior['sd'][k])
+                if zk < np.finfo(float).eps:
+                    continue
+                ast = (a-prior['mean'][k])/prior['sd'][k]
+                bst = (b-prior['mean'][k])/prior['sd'][k]
+                dnb = stats.norm.cdf(bst)
+                dna = stats.norm.cdf(ast)
+                tnorm_mean_zk = prior['mean'][k]*zk - prior['sd'][k]*(dnb-dna)
+                tnorm_var_zk = zk*prior['sd'][k]**2*(1 + (ast*dna-bst*dnb)/zk - ((dna-dnb)/zk)**2) + tnorm_mean_zk**2/zk
+                out += prior['weights'][k] * (tnorm_var_zk - (t1+t2)*tnorm_mean_zk + t1*t2*zk)
+                if (out < 0 and np.abs(out)< 1e-12):
+                    out = 0
+        
+        if prior['dist'] == 'student':
+            if q != 1:
+                NameError('degree other than 1 not supported for normal priors')
+            
+            out = 0
+            for k in range(len(prior['weights'])):
+                int = self.intx2Student(b, prior['mean'][k], prior['sd'][k], prior['df'][k],t1,t2) - self.intx2Student(a, prior['mean'][k], prior['sd'][k], prior['df'][k],t1,t2)
+                out += prior['weights'][k] * int
+        
+        if prior['dist'] == 'uniform':
+            out = (np.sum(self.pCoef(np.arange(0,q),q)*(b-t1)**(q-np.arange(0,q))*(b-t2)**(q+1+np.arange(0,q))) - np.sum(self.pCoef(np.arange(0,q),q)*(a-t1)**(q-np.arange(0,q))*(a-t2)**(q+1+np.arange(0,q)))) * 1/(prior['trunc'][1]-prior['trunc'][0])
+        
+        return out
+    
+    def intx2Student(self,x,m,s,v,t1,t2):
+        temp = (s**2*v)/(m**2 + s**2*v - 2*m*x + x**2)
+        out = ((v/(v + (m - x)**2/s**2))**(v/2) *
+            np.sqrt(temp) *
+            np.sqrt(1/temp) *
+            (-3*(-t1-t2+2*m)*s**2*v* (np.sqrt(1/temp) -
+            (1/temp)**(v/2)) + 
+            3*(-t1+m)*(-t2+m)*(-1 + v)*(-m + x) *
+            (1/temp)**(v/2) * 
+            self.robust2f1(1/2,(1 + v)/2,3/2,-(m - x)**2/(s**2 *v)) + 
+            (-1+v)*(-m+x)**3*(1/temp)**(v/2) * 
+            self.robust2f1(3/2,(1 + v)/2,5/2,-(m - x)**2/(s**2 *v)) )) / (3*s *(-1 + v)* np.sqrt(v) *sp.special.beta(v/2, 1/2))
+        
+        return out
+    
+    def pCoef(self,i,q):
+        out = sp.special.factorial(q)**2*(-1)**i/(sp.special.factorial(q-i)*sp.special.factorial(q+1+i))
+        return out
 
