@@ -20,6 +20,7 @@ import numpy as np
 import scipy as sp
 from scipy import stats
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 from itertools import combinations, chain
 from scipy.special import comb
 import itertools
@@ -1082,7 +1083,7 @@ class sobolBasis:
 
         use = np.concatenate((use, ncombs+1))
 
-        sob_comb_var = np.concatenate((sob_comb_var V_other))
+        sob_comb_var = np.concatenate((sob_comb_var, V_other))
         sob_comb = ((sob_comb_var.T)/V_tot).T
 
         sob_comb_var = sob_comb_var[use,:]
@@ -1098,7 +1099,7 @@ class sobolBasis:
                 else:
                     tmp = tmp.split()
                     separator = 'x'
-                    names_ind[cnt] = separator.join(tmp)
+                    names_ind1[cnt] = separator.join(tmp)
                 cnt += 1
         
         names_ind1[cnt] = 'other'
@@ -1113,6 +1114,84 @@ class sobolBasis:
         self.names_ind = names_ind1
         self.xx = np.linspace(0,1,nxfunc)
  
+        return
+    
+    def plot(self,text=False, labels=[], col='Paired', time=[]):
+        if len(time) == 0:
+            time = self.xx
+        
+        if len(labels) == 0:
+            labels1 = self.names_ind
+        else:
+            labels1 = self.names_ind
+            for i in range(len(labels)):
+                labels1[i] = labels[float(labels1[i])]
+        
+        map = cm.Paired(np.linspace(0,1,len(labels1)-1))
+        rgb = np.ones((map.shape[0]+1,4))
+        rgb[0:map.shape[0],:] = map
+        rgb[-1,0:3] = np.array([153,153,153])/255
+
+        ord = time.argsort()
+        x_mean = self.S
+        sens = np.cumsum(x_mean,axis=0)
+        fig, axs = plt.subplots(1, 2)
+        idx = np.where(np.sum(sens)/sens.shape[0]>=.99999)[0]
+        cnt = 0
+        for i in range(idx):
+            x2 = np.concatenate((time[ord], np.fliplr(time[ord])))
+            if i == 0:
+                inBetween = np.concatenate((np.zeros(time[ord].shape[0]), np.fliplr(sens[ord,i])))
+            else:
+                inBetween = np.concatenate((sens[ord,i-1], np.fliplr(sens[ord,i])))
+            if (cnt % rgb.shape[0]+1) == 0:
+                cnt = 0
+            
+            axs[0].fill(x2, inBetween, rgb[cnt,:])
+            cnt += 1
+        
+        axs[0].ylabel('proportion variance')
+        axs[0].xlabel('x')
+        axs[0].title('Sensitivity')
+        axs[0].ylim([0,1])
+        axs[0].xlim([time.min(), time.max()])
+
+        if text:
+            lab_x = np.argmax(x_mean, axis=1)
+            cs = np.zeros((sens.shape[1]+1, sens.shape[0]))
+            cs[1:,:] = np.cumsum(x_mean,axis=0)
+            cs_diff = np.zeros((x_mean.shape[0], x_mean.shape[1]))
+            for i in range(x_mean.shape[1]):
+                cs_diff[:,i] = np.diff(np.cumsum(np.concatenate((0, x_mean[:,0]))))
+            tmp = np.concatenate((np.arange(0,lab_x.shape[0]), lab_x))
+            ind = np.ravel_multi_index(np.concatenate((tmp[:,0], tmp[:,1])), dims=cs.shape, order='F')
+            ind1 = np.ravel_multi_index(np.concatenate((tmp[:,0], tmp[:,1])), dims=cs_diff.shape, order='F')
+            cs_diff2 = cs_diff/2
+            plt.text(time[lab_x], cs[ind] + cs_diff2[ind1], self.names_ind)
+        
+        x_mean_var = self.S_var
+        sens_var = np.cumsum(x_mean_var,axis=0)
+        cnt = 0
+        for i in range(idx):
+            x2 = np.concatenate((time[ord], np.fliplr(time[ord])))
+            if i == 1:
+                inBetween = np.concatenate((np.zeros(time[ord].shape[0]), np.fliplr(sens_var[ord,i])))
+            else:
+                inBetween = np.concatenate((sens_var[ord,i-1], np.fliplr(sens_var[ord,i])))
+            if (cnt % rgb.shape[0]+1) == 0:
+                cnt = 0
+            
+            axs[0].fill(x2, inBetween, rgb[cnt,:])
+            cnt += 1
+        
+        axs[0].ylabel('variance')
+        axs[0].xlabel('x')
+        axs[0].title('Variance Decomposition')
+        axs[0].xlim([time.min(), time.max()])
+
+        if not text:
+            plt.legend(labels1[0:idx],loc='upper left')
+
         return
     
     def get_f0(self, pc_mod, pc, mcmc_use):
