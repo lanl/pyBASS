@@ -949,7 +949,7 @@ class sobolBasis:
         """
         self.int_order = int_order
         if mcmc_use == None:
-            self.mcmc_use = self.mod.bm_list[0].samples.s2.shape[0]
+            self.mcmc_use = self.mod.bm_list[0].samples.s2.shape[0]-1
         else:
             self.mcmc_use = mcmc_use
         self.nind = nind
@@ -964,27 +964,27 @@ class sobolBasis:
         
         p = bassMod.data.p
 
-        if len(prior) < p:
-            for i in range(len(prior)+1,p):
+        if len(self.prior) < p:
+            for i in range(len(self.prior),p):
                 tmp = {'dist':'uniform','trunc':None}
-                prior.append(tmp)
+                self.prior.append(tmp)
         
-        for i in range(len(prior)):
-            if prior[i]['trunc'] == None:
-                prior[i]['trunc'] = np.array([0,1])
+        for i in range(len(self.prior)):
+            if self.prior[i]['trunc'] == None:
+                self.prior[i]['trunc'] = np.array([0,1])
             else:
-                prior[i]['trunc'] = normalize(prior[i]['trunc'], bassMod.data.bounds[:,i])
+                self.prior[i]['trunc'] = normalize(self.prior[i]['trunc'], bassMod.data.bounds[:,i])
             
-            if prior[i]['dist'] == 'normal' or prior[i]['dist'] == 'student':
-                prior[i]['mean'] = normalize(prior[i]['mean'], bassMod.data.bounds[:,i])
-                prior[i]['sd'] = prior[i]['sd']/(bassMod.data.bounds[1,i]-bassMod.data.bounds[0,i])
-                if prior[i]['dist'] == 'normal':
-                    prior[i]['z'] = stats.norm.pdf((prior[i]['trunc'][1]-prior[i]['mean'])/prior[i]['sd']) - stats.norm.pdf((prior[i]['trunc'][0]-prior[i]['mean'])/prior[i]['sd'])
+            if self.prior[i]['dist'] == 'normal' or self.prior[i]['dist'] == 'student':
+                self.prior[i]['mean'] = normalize(self.prior[i]['mean'], bassMod.data.bounds[:,i])
+                self.prior[i]['sd'] = prior[i]['sd']/(bassMod.data.bounds[1,i]-bassMod.data.bounds[0,i])
+                if self.prior[i]['dist'] == 'normal':
+                    self.prior[i]['z'] = stats.norm.pdf((self.prior[i]['trunc'][1]-self.prior[i]['mean'])/self.prior[i]['sd']) -stats.norm.pdf((self.prior[i]['trunc'][0]-self.prior[i]['mean'])/self.prior[i]['sd'])
                 else:
-                    prior[i]['z'] = stats.t.pdf((prior[i]['trunc'][1]-prior[i]['mean'])/prior[i]['sd'], prior[i]['df']) - stats.t.pdf((prior[i]['trunc'][0]-prior[i]['mean'])/prior[i]['sd'], prior[i]['df'])
+                    self.prior[i]['z'] = stats.t.pdf((self.prior[i]['trunc'][1]-self.prior[i]['mean'])/self.prior[i]['sd'], self.prior[i]['df']) - stats.t.pdf((self.prior[i]['trunc'][0]-self.prior[i]['mean'])/self.prior[i]['sd'], self.prior[i]['df'])
                 
-                cc = (prior[i]['weights']*prior[i]['z']).sum()
-                prior[i]['weights'] = prior[i]['weights']/cc
+                cc = (self.prior[i]['weights']*self.prior[i]['z']).sum()
+                self.prior[i]['weights'] = self.prior[i]['weights']/cc
             
         pc_mod = self.mod.bm_list
         pcs = self.mod.basis
@@ -996,14 +996,14 @@ class sobolBasis:
             self.int_order = p
             print('int_order > number of inputs, chnage to int_order = number of input\n')
         
-        u_list = u_list = [list(itertools.combinations(range(1,p+1), x)) for x in range(1,int_order+1)]
+        u_list = [list(itertools.combinations(range(0,p), x)) for x in range(1,int_order+1)]
         ncombs_vec = [len(x) for x in u_list]
         ncombs = sum(ncombs_vec)
         nxfunc = pcs.shape[0]
 
         n_pc = self.mod.nbasis
 
-        w0 = [self.get_f0(pc_mod,x,mcmc_use) for x in range(1,n_pc+1)]
+        w0 = [self.get_f0(pc_mod,x) for x in range(n_pc)]
         w0 = np.array(w0)
         
         f0r2 = (pcs@w0)**2
@@ -1194,23 +1194,23 @@ class sobolBasis:
 
         return
     
-    def get_f0(self, pc_mod, pc, mcmc_use):
-        mcmc_mod_use = pc_mod[pc].model_lookup(mcmc_use)
-        out = pc_mod[pc].samples.beta[mcmc_use,0]
-        if (pc_mod[pc].samples.nbasis(mcmc_use) > 0):
-            for m in range(pc_mod[pc].samples.nbasis(mcmc_use)):
-                out1 = pc_mod[pc].samples.nbasis[mcmc_use]
-                for l in range(pc_mod[pc].data.p):
+    def get_f0(self, pc_mod, pc):
+        mcmc_mod_use = pc_mod[pc].model_lookup[self.mcmc_use]
+        out = pc_mod[pc].samples.beta[self.mcmc_use,0]
+        if (pc_mod[pc].samples.nbasis[self.mcmc_use] > 0):
+            for m in range(pc_mod[pc].samples.nbasis[self.mcmc_use]):
+                out1 = pc_mod[pc].samples.beta[self.mcmc_use, 1+m]
+                for l in range(1,pc_mod[pc].data.p+1):
                     out1 = out1*self.C1Basis(pc_mod,l,m,pc,mcmc_mod_use)
                 out += out1
         return out
     
 
     def C1Basis(self, pc_mod, l, m, pc, mcmc_mod_use):
-        int_use_l = np.where(pc_mod[pc].samples.vs[mcmc_mod_use,m,:]==l)
+        int_use_l = np.where(pc_mod[pc].samples.vs[mcmc_mod_use,m,:]==l)[0]
         if int_use_l.size == 0:
             out = 1
-            return
+            return out
 
         s = pc_mod[pc].samples.signs[mcmc_mod_use,m,int_use_l]
         t = pc_mod[pc].samples.knots[mcmc_mod_use,m,int_use_l]
@@ -1218,24 +1218,24 @@ class sobolBasis:
         
         if s == 0:
             out = 0
-            return
+            return out
         
         cc = const(s, t)
 
         if s == 1:
-            a = np.maximum(self.prior[l]['trunc'][0],t)
-            b = self.prior[l]['trunc'][2]
+            a = np.maximum(self.prior[l-1]['trunc'][0],t)
+            b = self.prior[l]['trunc'][1]
             if b < t:
                 out = 0
-                return
-            out = self.intabq1(self.prior[l],a,b,t,q)/cc
+                return out
+            out = self.intabq1(self.prior[l-1],a,b,t,q)/cc
         else:
-            a = self.prior[l]['trunc'][0]
-            b = np.maximum(self.prior[l]['trunc'][1],t)
+            a = self.prior[l-1]['trunc'][0]
+            b = np.minimum(self.prior[l-1]['trunc'][1],t)
             if t < a:
                 out = 0
-                return
-            out = self.intabq1(self.prior[l],a,b,t,q)*(-1)**q/cc
+                return out
+            out = self.intabq1(self.prior[l-1],a,b,t,q)*(-1)**q/cc
         
         return out
     
