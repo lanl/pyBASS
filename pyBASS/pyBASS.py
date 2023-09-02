@@ -1095,19 +1095,20 @@ class sobolBasis:
         names_ind1 = []
         for i in range(len(u_list)):
             for j in range(len(u_list[i])):
-                tmp = str(u_list[i][j])
-                tmp = re.findall(r'\d+', tmp)
-                if len(tmp) == 1:
-                    names_ind1.append(tmp[0])
+                tmp = u_list[i][j]
+                tmp1 = [x+1 for x in tmp]
+                tmp1 = re.findall(r'\d+', str(tmp1))
+                if len(tmp1) == 1:
+                    names_ind1.append(tmp1[0])
                 else:
                     separator = 'x'
-                    names_ind1.append(separator.join(tmp))
+                    names_ind1.append(separator.join(tmp1))
         
         names_ind1.append('other')
         names_ind2 = [names_ind1[x] for x in use]
 
         toc = time.perf_counter()
-        print('Finish: %0.2fs\n', (toc-tic))
+        print('Finish: %0.2fs\n' % (toc-tic))
 
         self.S = sob_comb
         self.S_var = sob_comb_var
@@ -1117,7 +1118,7 @@ class sobolBasis:
  
         return
     
-    def plot(self,text=False, labels=[], col='Paired', time=[]):
+    def plot(self, text=False, labels=[], col='Paired', time=[]):
         if len(time) == 0:
             time = self.xx
         
@@ -1128,34 +1129,31 @@ class sobolBasis:
             for i in range(len(labels)):
                 labels1[i] = labels[float(labels1[i])]
         
-        map = cm.Paired(np.linspace(0,1,len(labels1)-1))
+        map = cm.Paired(np.linspace(0,1,12))
+        map = np.resize(map, (len(labels1),4))
         rgb = np.ones((map.shape[0]+1,4))
         rgb[0:map.shape[0],:] = map
         rgb[-1,0:3] = np.array([153,153,153])/255
 
         ord = time.argsort()
         x_mean = self.S
-        sens = np.cumsum(x_mean,axis=0)
+        sens = np.cumsum(x_mean,axis=0).T
         fig, axs = plt.subplots(1, 2)
-        idx = np.where(np.sum(sens)/sens.shape[0]>=.99999)[0]
+        idx = np.where(np.sum(sens,axis=0)/sens.shape[0]>=.99999)[0][0]
         cnt = 0
-        for i in range(idx):
-            x2 = np.concatenate((time[ord], np.fliplr(time[ord])))
+        for i in range(idx+1):
+            x2 = np.concatenate((time[ord], np.flip(time[ord])))
             if i == 0:
-                inBetween = np.concatenate((np.zeros(time[ord].shape[0]), np.fliplr(sens[ord,i])))
+                inBetween = np.concatenate((np.zeros(time[ord].shape[0]), np.flip(sens[ord,i])))
             else:
-                inBetween = np.concatenate((sens[ord,i-1], np.fliplr(sens[ord,i])))
+                inBetween = np.concatenate((sens[ord,i-1], np.flip(sens[ord,i])))
             if (cnt % rgb.shape[0]+1) == 0:
                 cnt = 0
             
-            axs[0].fill(x2, inBetween, rgb[cnt,:])
+            axs[0].fill(x2, inBetween, color=rgb[cnt,:])
             cnt += 1
         
-        axs[0].ylabel('proportion variance')
-        axs[0].xlabel('x')
-        axs[0].title('Sensitivity')
-        axs[0].ylim([0,1])
-        axs[0].xlim([time.min(), time.max()])
+        axs[0].set(xlabel="x", ylabel="proportion variance", title='Sensitivity', ylim=[0,1], xlim=[time.min(), time.max()])
 
         if text:
             lab_x = np.argmax(x_mean, axis=1)
@@ -1171,28 +1169,26 @@ class sobolBasis:
             plt.text(time[lab_x], cs[ind] + cs_diff2[ind1], self.names_ind)
         
         x_mean_var = self.S_var
-        sens_var = np.cumsum(x_mean_var,axis=0)
+        sens_var = np.cumsum(x_mean_var,axis=0).T
         cnt = 0
-        for i in range(idx):
-            x2 = np.concatenate((time[ord], np.fliplr(time[ord])))
-            if i == 1:
-                inBetween = np.concatenate((np.zeros(time[ord].shape[0]), np.fliplr(sens_var[ord,i])))
+        for i in range(idx+1):
+            x2 = np.concatenate((time[ord], np.flip(time[ord])))
+            if i == 0:
+                inBetween = np.concatenate((np.zeros(time[ord].shape[0]), np.flip(sens_var[ord,i])))
             else:
-                inBetween = np.concatenate((sens_var[ord,i-1], np.fliplr(sens_var[ord,i])))
+                inBetween = np.concatenate((sens_var[ord,i-1], np.flip(sens_var[ord,i])))
             if (cnt % rgb.shape[0]+1) == 0:
                 cnt = 0
             
-            axs[0].fill(x2, inBetween, rgb[cnt,:])
+            axs[1].fill(x2, inBetween, color=rgb[cnt,:])
             cnt += 1
         
-        axs[0].ylabel('variance')
-        axs[0].xlabel('x')
-        axs[0].title('Variance Decomposition')
-        axs[0].xlim([time.min(), time.max()])
+        axs[1].set(xlabel="x", ylabel="variance", title='Variance Decomposition', xlim=[time.min(), time.max()])
 
         if not text:
-            plt.legend(labels1[0:idx],loc='upper left')
+            plt.legend(labels1[0:(idx+1)],loc='upper left')
 
+        fig.tight_layout()
         return
     
     def get_f0(self, pc_mod, pc):
