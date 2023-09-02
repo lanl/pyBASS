@@ -1,0 +1,32 @@
+[project]
+name = "pyBASS"
+version = "0.3.2"
+description = "Bayesian Adaptive Spline Surfaces"
+authors = [
+    {name = "Devin Francom", email = "dfrancom@lanl.gov"},
+	{name = "J. Derek Tucker", email = "jdtuck@sandia.gov"}
+]
+license = {text = "BSD 3-Clause"}
+readme = "README.md"
+requires-python = ">=3.6"
+
+keywords = ["emulator"]
+
+dependencies=[
+        "numpy",
+        "matplotlib",
+        "scipy",
+]
+
+classifiers = [
+    'License :: OSI Approved :: BSD License',
+    'Operating System :: OS Independent',
+    'Programming Language :: Python',
+    'Topic :: Scientific/Engineering',
+    'Topic :: Scientific/Engineering :: Mathematics',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.6',
+]
+
+[project.urls]
+repository = "http://www.github.com/lanl/pyBASS"
