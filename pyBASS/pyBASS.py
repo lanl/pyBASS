@@ -28,6 +28,7 @@ from collections import namedtuple
 #from pathos.multiprocessing import ProcessingPool as Pool
 from multiprocessing import Pool
 import time
+import re
 
 
 def abline(slope, intercept):
@@ -1040,72 +1041,70 @@ class sobolBasis:
         ints1 = ints1_temp[1:]
         
         ints = []
-        ints.append(np.zeros((ints1[0].shape[0], u_list[0].shape[0])))
-        for i in range(u_list[0].shape[0]):
+        ints.append(np.zeros((ints1[0].shape[0], len(u_list[0]))))
+        for i in range(len(u_list[0])):
             ints[0][:,i] = ints1[i]
         
         if int_order > 1:
-            for i in range(2,int_order):
-                idx = np.sum(ncombs_vec[0:(i-1)])+np.arange(1,u_list[i].shape[0])
-                ints[i] = np.zeros((ints1[0].shape[0], idx.shape[0]))
+            for i in range(2,int_order+1):
+                idx = np.sum(ncombs_vec[0:(i-1)])+np.arange(0,len(u_list[i-1]))
+                ints.append(np.zeros((ints1[0].shape[0], idx.shape[0])))
                 cnt = 0
                 for j in idx:
-                    ints[i][:,cnt] = ints1[j]
+                    ints[i-1][:,cnt] = ints1[j]
                     cnt += 1
         
         sob = []
-        sob.append(ints[1])
+        sob.append(ints[0])
         toc = time.perf_counter()
         print('Shuffling: %0.2fs\n' % (toc-tic))
 
-        if u_list.shape[0] > 1:
-            for i in range(1,u_list.shape[0]):
-                sob[i] = np.zeros((nxfunc,ints[i].shape[1]))
-                for j in range(u_list[i].shape[0]):
+        if len(u_list) > 1:
+            for i in range(1,len(u_list)):
+                sob.append(np.zeros((nxfunc,ints[i].shape[1])))
+                for j in range(len(u_list[i])):
                     cc = np.zeros(nxfunc)
-                    for k in range(i-1):
-                        ind = [np.all(ismember(x,u_list[i][j,:])) for x in u_list[k]]
+                    for k in range(i):
+                        ind = [np.all(np.in1d(x,u_list[i][j])) for x in u_list[k]]
                         cc += (-1)**(i-k)*np.sum(ints[k][:,ind],axis=1)
                     sob[i][:,j] = ints[i][:,j] + cc
         
-        if np.isnan(nind):
+        if nind is None:
             nind = ncombs
         
-        sob_comb_var = np.concatenate((2, sob))
+        sob_comb_var = np.concatenate(sob, axis=1)
 
         vv = np.mean(sob_comb_var,axis=0)
         ord = vv.argsort()[::-1]
-        cutoff = vv[ord[nind]]
+        cutoff = vv[ord[nind-1]]
         if nind > ord.shape[0]:
             cutoff = vv.min()
         
-        use = np.sort(np.where(vv>=cutoff))
+        use = np.sort(np.where(vv>=cutoff)[0])
 
         V_other = V_tot - np.sum(sob_comb_var[:,use],axis=1)
 
-        use = np.concatenate((use, ncombs+1))
+        use = np.append(use, ncombs)
 
-        sob_comb_var = np.concatenate((sob_comb_var, V_other))
-        sob_comb = ((sob_comb_var.T)/V_tot).T
+        sob_comb_var = np.hstack((sob_comb_var,V_other[:,np.newaxis])).T
+        sob_comb = sob_comb_var/V_tot
 
         sob_comb_var = sob_comb_var[use,:]
         sob_comb = sob_comb[use,:]
 
         names_ind1 = []
-        cnt = 0
         for i in range(len(u_list)):
-            for j in range(u_list[i].shape[0]):
-                tmp = str(u_list[i][j,:])
+            for j in range(len(u_list[i])):
+                tmp = str(u_list[i][j])
+                tmp = re.findall(r'\d+', tmp)
                 if len(tmp) == 1:
-                    names_ind1[cnt] = tmp
+                    names_ind1.append(tmp[0])
                 else:
-                    tmp = tmp.split()
                     separator = 'x'
-                    names_ind1[cnt] = separator.join(tmp)
-                cnt += 1
+                    names_ind1.append(separator.join(tmp))
         
-        names_ind1[cnt] = 'other'
-        names_ind1 = names_ind1[use]
+        names_ind1.append('other')
+        names_ind2 = [names_ind1[x] for x in use]
 
         toc = time.perf_counter()
         print('Finish: %0.2fs\n', (toc-tic))
@@ -1113,7 +1112,7 @@ class sobolBasis:
         self.S = sob_comb
         self.S_var = sob_comb_var
         self.Var_tot = V_tot
-        self.names_ind = names_ind1
+        self.names_ind = names_ind2
         self.xx = np.linspace(0,1,nxfunc)
  
         return
