@@ -4,6 +4,7 @@ version = "0.3.2"
 description = "Bayesian Adaptive Spline Surfaces"
 authors = [
     {name = "Devin Francom", email = "dfrancom@lanl.gov"},
+    {name = "Arthur Lui", email = "luiarthur@gmail.com"},
 	{name = "J. Derek Tucker", email = "jdtuck@sandia.gov"}
 ]
 license = {text = "BSD 3-Clause"}
