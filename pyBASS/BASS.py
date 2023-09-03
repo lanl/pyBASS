@@ -376,7 +376,7 @@ class BassModel:
         ax = fig.add_subplot(2, 2, 3)
         yhat = self.predict(self.data.xx_orig).mean(axis=0)  # posterior predictive mean
         plt.scatter(self.data.y, yhat)
-        abline(1, 0)
+        uf.abline(1, 0)
         plt.xlabel("observed")
         plt.ylabel("posterior prediction")
 
