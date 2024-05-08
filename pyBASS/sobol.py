@@ -26,6 +26,7 @@ import itertools
 from scipy import stats
 import re
 import time
+import math
 
 class sobolBasis:
     """
@@ -206,6 +207,14 @@ class sobolBasis:
         sob_comb_var = sob_comb_var[use,:]
         sob_comb = sob_comb[use,:]
 
+        # Calculate "Total Sobol' Index"
+        sob_comb_tot = np.zeros((p,nxfunc))
+        idx = 0
+        for i in range(int_order):
+            for j in range(len(u_list[i])):
+                sob_comb_tot[u_list[i][j],:] += sob_comb_var[idx]
+                idx += 1
+        
         names_ind1 = []
         for i in range(len(u_list)):
             for j in range(len(u_list[i])):
@@ -226,36 +235,36 @@ class sobolBasis:
 
         self.S = sob_comb
         self.S_var = sob_comb_var
+        self.T_var = sob_comb_tot
         self.Var_tot = V_tot
         self.names_ind = names_ind2
         self.xx = np.linspace(0,1,nxfunc)
  
         return
     
-    def plot(self, text=False, labels=[], col='Paired', time=[]):
+    def plot(self, int_order=1, total_sobol=True, text=False, labels=[], col='Paired', time=[]):
         if len(time) == 0:
             time = self.xx
         
+        p = np.shape(self.mod.xx)[1]
+        ncomb = np.sum([math.comb(p, k) for k in range(1,int_order+1)])
+        
         if len(labels) == 0:
-            labels1 = self.names_ind
-        else:
-            labels1 = self.names_ind
-            for i in range(len(labels)):
-                labels1[i] = labels[float(labels1[i])]
+            labels = self.names_ind[:ncomb] + [self.names_ind[-1]]
         
         map = cm.Paired(np.linspace(0,1,12))
-        map = np.resize(map, (len(labels1),4))
+        map = np.resize(map, (len(labels),4))
         rgb = np.ones((map.shape[0]+1,4))
         rgb[0:map.shape[0],:] = map
         rgb[-1,0:3] = np.array([153,153,153])/255
 
         ord = time.argsort()
-        x_mean = self.S
+        x_mean = np.vstack([self.S[:ncomb, :],
+                            np.sum(self.S[ncomb:, :],axis=0,keepdims=True)])
         sens = np.cumsum(x_mean,axis=0).T
-        fig, axs = plt.subplots(1, 2)
-        idx = np.where(np.sum(sens,axis=0)/sens.shape[0]>=.99999)[0][0]
+        fig, axs = plt.subplots(1, 2+total_sobol)
         cnt = 0
-        for i in range(idx+1):
+        for i in range(ncomb+1):
             x2 = np.concatenate((time[ord], np.flip(time[ord])))
             if i == 0:
                 inBetween = np.concatenate((np.zeros(time[ord].shape[0]), np.flip(sens[ord,i])))
@@ -282,10 +291,11 @@ class sobolBasis:
             cs_diff2 = cs_diff/2
             plt.text(time[lab_x], cs[ind] + cs_diff2[ind1], self.names_ind)
         
-        x_mean_var = self.S_var
+        x_mean_var = np.vstack([self.S_var[:ncomb, :],
+                            np.sum(self.S_var[ncomb:, :],axis=0,keepdims=True)])
         sens_var = np.cumsum(x_mean_var,axis=0).T
         cnt = 0
-        for i in range(idx+1):
+        for i in range(ncomb+1):
             x2 = np.concatenate((time[ord], np.flip(time[ord])))
             if i == 0:
                 inBetween = np.concatenate((np.zeros(time[ord].shape[0]), np.flip(sens_var[ord,i])))
@@ -300,7 +310,25 @@ class sobolBasis:
         axs[1].set(xlabel="x", ylabel="variance", title='Variance Decomposition', xlim=[time.min(), time.max()], ylim=[0, inBetween.max()+3])
 
         if not text:
-            plt.legend(labels1[0:(idx+1)],loc='upper left')
+            axs[1].legend(labels,loc='upper left')
+
+        if total_sobol:
+            x_mean_tot = self.T_var
+            sens_tot = np.cumsum(x_mean_tot,axis=0).T
+            cnt = 0
+            for i in range(p):
+                x2 = np.concatenate((time[ord], np.flip(time[ord])))
+                if i == 0:
+                    inBetween = np.concatenate((np.zeros(time[ord].shape[0]), np.flip(sens_tot[ord,i])))
+                else:
+                    inBetween = np.concatenate((sens_tot[ord,i-1], np.flip(sens_tot[ord,i])))
+                if (cnt % rgb.shape[0]+1) == 0:
+                    cnt = 0
+                
+                axs[2].fill(x2, inBetween, color=rgb[cnt,:])
+                cnt += 1
+            
+            axs[2].set(xlabel="x", ylabel="total variance", title="Total Sobol'", xlim=[time.min(), time.max()], ylim=[0, inBetween.max()+3])
 
         fig.tight_layout()
         return
