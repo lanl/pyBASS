@@ -40,14 +40,12 @@ class sobolBasis:
     MARS-type models. This is for the Basis class
 
     :param mod: BassBasis model
-    :param pcatype: type of pca
 
     :return: object with plot method.
     """
 
-    def __init__(self, mod: BassBasis, pcatype="fpca"):
+    def __init__(self, mod: BassBasis):
         self.mod = mod
-        self.pcatype = pcatype
         return
 
     def decomp(self, int_order, prior=None, mcmc_use=None, nind=None, ncores=1):
