@@ -172,15 +172,13 @@ class sobolBasis:
         for i in range(n_pc):
             w0[i] = self.get_f0(pc_mod, i)
 
-        f0r2 = (pcs @ w0)
+        f0r2 = (pcs @ w0) ** 2
         if self.pcatype == "jfpcah":
             hhat = f0r2[nxfunc:]
             gam0 = cumulative_trapezoid(np.exp(hhat), tt, initial=0)
             gam0 /= trapezoid(np.exp(hhat), tt)
             gam = (gam0 - gam0.min()) / (gam0.max() - gam0.min())
             f0r2 = np.interp((tt[-1] - tt[0]) * gam + tt[0], tt, f0r2[:nxfunc])
-        
-        f0r2 = f0r2 ** 2
 
         tmp = [pc_mod[x].samples.nbasis[self.mcmc_use] for x in range(n_pc)]
         max_nbasis = max(tmp)
