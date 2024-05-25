@@ -20,7 +20,6 @@ Author: J. Derek Tucker
 from pyBASS import BassBasis
 import numpy as np
 import scipy as sp
-from scipy.integrate import trapezoid, cumulative_trapezoid
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import pyBASS.utils as uf
@@ -158,13 +157,7 @@ class sobolBasis:
         ]
         ncombs_vec = [len(x) for x in u_list]
         ncombs = sum(ncombs_vec)
-
-        if self.pcatype == "jfpcah":
-            nxfunc = int(pcs.shape[0]/2)
-        else:
-            nxfunc = pcs.shape[0]
-        
-        tt = np.linspace(0, 1, nxfunc)
+        nxfunc = pcs.shape[0]
 
         n_pc = self.mod.nbasis
 
@@ -173,12 +166,6 @@ class sobolBasis:
             w0[i] = self.get_f0(pc_mod, i)
 
         f0r2 = (pcs @ w0) ** 2
-        if self.pcatype == "jfpcah":
-            hhat = f0r2[nxfunc:]
-            gam0 = cumulative_trapezoid(np.exp(hhat), tt, initial=0)
-            gam0 /= trapezoid(np.exp(hhat), tt)
-            gam = (gam0 - gam0.min()) / (gam0.max() - gam0.min())
-            f0r2 = np.interp((tt[-1] - tt[0]) * gam + tt[0], tt, f0r2[:nxfunc])
 
         tmp = [pc_mod[x].samples.nbasis[self.mcmc_use] for x in range(n_pc)]
         max_nbasis = max(tmp)
@@ -222,7 +209,7 @@ class sobolBasis:
 
         if int_order > 1:
             for i in range(2, int_order + 1):
-                idx = np.sum(ncombs_vec[0: (i - 1)]) + np.arange(0, len(u_list[i - 1]))
+                idx = np.sum(ncombs_vec[0 : (i - 1)]) + np.arange(0, len(u_list[i - 1]))
                 ints.append(np.zeros((ints1[0].shape[0], idx.shape[0])))
                 cnt = 0
                 for j in idx:
@@ -298,7 +285,7 @@ class sobolBasis:
         self.T_var = sob_comb_tot
         self.Var_tot = V_tot
         self.names_ind = names_ind2
-        self.xx = tt
+        self.xx = np.linspace(0, 1, nxfunc)
 
         return
 
@@ -554,8 +541,6 @@ class sobolBasis:
         return out
 
     def func_hat(self, u, pc_mod, pcs, mcmc_use, f0r2, C1Basis_array):
-        M = f0r2.shape[0]
-        tt = np.linspace(0, 1, M)
         res = np.zeros(pcs.shape[0])
         n_pc = len(pc_mod)
         for i in range(n_pc):
@@ -567,15 +552,7 @@ class sobolBasis:
                         pc_mod, i, j, u, C1Basis_array
                     )
 
-        if self.pcatype == 'jfpcah':
-            hhat = res[M:]
-            gam0 = cumulative_trapezoid(np.exp(hhat), tt, initial=0)
-            gam0 /= trapezoid(np.exp(hhat), tt)
-            gam = (gam0 - gam0.min()) / (gam0.max() - gam0.min())
-            res = np.interp((tt[-1] - tt[0]) * gam + tt[0], tt, res[:M])
-            out = res - f0r2
-        else:
-            out = res - f0r2
+        out = res - f0r2
 
         return out
 
