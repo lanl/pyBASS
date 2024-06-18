@@ -80,20 +80,20 @@ class sobolBasis:
         """
         self.int_order = int_order
         if mcmc_use is None:
-            self.mcmc_use = self.mod.bm_list[0].samples.s2.shape[0] - 1
+            self.mcmc_use = self.mod.bm_list[0].nstore-1
         else:
             self.mcmc_use = mcmc_use
         self.nind = nind
         self.ncores = ncores
 
-        bassMod = self.mod.bm_list[0]
+        bassDat = self.mod.bm_list[0].data
 
         if prior is None:
             self.prior = []
         else:
             self.prior = prior
 
-        p = bassMod.data.p
+        p = bassDat.p
 
         if len(self.prior) < p:
             for i in range(len(self.prior), p):
@@ -104,17 +104,11 @@ class sobolBasis:
             if self.prior[i]["trunc"] is None:
                 self.prior[i]["trunc"] = np.array([0, 1])
             else:
-                self.prior[i]["trunc"] = uf.normalize(
-                    self.prior[i]["trunc"], bassMod.data.bounds[:, i]
-                )
+                self.prior[i]['trunc'] = uf.normalize(self.prior[i]['trunc'], bassDat.bounds[:,i])
 
             if self.prior[i]["dist"] == "normal" or self.prior[i]["dist"] == "student":
-                self.prior[i]["mean"] = uf.normalize(
-                    self.prior[i]["mean"], bassMod.data.bounds[:, i]
-                )
-                self.prior[i]["sd"] = prior[i]["sd"] / (
-                    bassMod.data.bounds[1, i] - bassMod.data.bounds[0, i]
-                )
+                self.prior[i]['mean'] = uf.normalize(self.prior[i]['mean'], bassDat.bounds[:,i])
+                self.prior[i]['sd'] = prior[i]['sd']/(bassDat.bounds[1,i]-bassDat.bounds[0,i])
                 if self.prior[i]["dist"] == "normal":
                     self.prior[i]["z"] = stats.norm.pdf(
                         (self.prior[i]["trunc"][1] - self.prior[i]["mean"])
@@ -174,9 +168,7 @@ class sobolBasis:
             mcmc_mod_usei = pc_mod[i].model_lookup[self.mcmc_use]
             for j in range(p):
                 for k in range(nb):
-                    C1Basis_array[i, j, k] = self.C1Basis(
-                        pc_mod, j + 1, k, i, mcmc_mod_usei
-                    )
+                    C1Basis_array[i,j,k] = self.C1Basis(pc_mod, j, k, i, mcmc_mod_usei)
 
         u_list1 = []
         for i in range(int_order):
@@ -429,14 +421,16 @@ class sobolBasis:
         if pc_mod[pc].samples.nbasis[self.mcmc_use] > 0:
             for m in range(pc_mod[pc].samples.nbasis[self.mcmc_use]):
                 out1 = pc_mod[pc].samples.beta[self.mcmc_use, 1 + m]
-                for l in range(1, pc_mod[pc].data.p + 1):
+                for l in range(pc_mod[pc].data.p):
                     out1 = out1 * self.C1Basis(pc_mod, l, m, pc, mcmc_mod_use)
                 out += out1
         return out
 
     def C1Basis(self, pc_mod, l, m, pc, mcmc_mod_use):
-        int_use_l = np.where(pc_mod[pc].samples.vs[mcmc_mod_use, m, :] == l)[0]
-        if int_use_l.size == 0:
+        n_int = pc_mod[pc].samples.n_int[mcmc_mod_use,m]
+        int_use_l = np.where(pc_mod[pc].samples.vs[mcmc_mod_use,m,:][:n_int]==l)[0]
+        
+        if len(int_use_l) == 0:
             out = 1
             return out
 
@@ -451,19 +445,19 @@ class sobolBasis:
         cc = uf.const(s, t)
 
         if s == 1:
-            a = np.maximum(self.prior[l - 1]["trunc"][0], t)
+            a = np.maximum(self.prior[l]['trunc'][0],t)
             b = self.prior[l]["trunc"][1]
             if b < t:
                 out = 0
                 return out
-            out = self.intabq1(self.prior[l - 1], a, b, t, q) / cc
+            out = self.intabq1(self.prior[l],a,b,t,q)/cc
         else:
-            a = self.prior[l - 1]["trunc"][0]
-            b = np.minimum(self.prior[l - 1]["trunc"][1], t)
+            a = self.prior[l]['trunc'][0]
+            b = np.minimum(self.prior[l]['trunc'][1],t)
             if t < a:
                 out = 0
                 return out
-            out = self.intabq1(self.prior[l - 1], a, b, t, q) * (-1) ** q / cc
+            out = self.intabq1(self.prior[l],a,b,t,q)*(-1)**q/cc
 
         return out
 
@@ -586,9 +580,7 @@ class sobolBasis:
                     temp2 = temp2 * C1Basis_array[i, l, mi] * C1Basis_array[j, l, mj]
 
                 for l in idx2:
-                    temp3 = temp3 * self.C2Basis(
-                        pc_mod, l + 1, mi, mj, i, j, mcmc_mod_usei, mcmc_mod_usej
-                    )
+                    temp3 = temp3 * self.C2Basis(pc_mod,l,mi,mj,i,j,mcmc_mod_usei,mcmc_mod_usej)
 
                 out += temp1 * temp2 * temp3
 
@@ -596,9 +588,11 @@ class sobolBasis:
 
     def C2Basis(self, pc_mod, l, m1, m2, pc1, pc2, mcmc_mod_use1, mcmc_mod_use2):
 
-        if l <= pc_mod[pc1].data.p:
-            int_use_l1 = np.where(pc_mod[pc1].samples.vs[mcmc_mod_use1, m1, :] == l)[0]
-            int_use_l2 = np.where(pc_mod[pc2].samples.vs[mcmc_mod_use2, m2, :] == l)[0]
+        if (l < pc_mod[pc1].data.p):
+            n_int1 = pc_mod[pc1].samples.n_int[mcmc_mod_use1,m1]            
+            int_use_l1 = np.where(pc_mod[pc1].samples.vs[mcmc_mod_use1,m1,:][:n_int1]==l)[0]
+            n_int2 = pc_mod[pc2].samples.n_int[mcmc_mod_use2,m2]    
+            int_use_l2 = np.where(pc_mod[pc2].samples.vs[mcmc_mod_use2,m2,:][:n_int2]==l)[0]
 
             if int_use_l1.size == 0 and int_use_l2.size == 0:
                 out = 1
@@ -626,7 +620,7 @@ class sobolBasis:
                 s1 = s2
                 s2 = temp
 
-            out = self.C22Basis(self.prior[l - 1], t1, t2, s1, s2, q)
+            out = self.C22Basis(self.prior[l],t1,t2,s1,s2,q)
 
         return out
 
