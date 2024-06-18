@@ -856,7 +856,7 @@ class BassPCAsetup:
             lambda row: (row - self.y_mean) / self.y_sd, 1, y
         )
         # decomp = np.linalg.svd(y_scale.T)
-        U, s, V = np.linalg.svd(self.y_scale.T)
+        U, s, V = np.linalg.svd(self.y_scale.T, full_matrices=False)
         self.evals = s**2
         self.basis = np.dot(U, np.diag(s))
         self.newy = V
