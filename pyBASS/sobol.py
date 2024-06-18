@@ -32,11 +32,11 @@ import math
 
 class sobolBasis:
     """
-    Decomposes the variance of the BASS model into variance due to the main 
-    effects, two way interactions, and so on, similar to the ANOVA 
+    Decomposes the variance of the BASS model into variance due to the main
+    effects, two way interactions, and so on, similar to the ANOVA
     decoposition for linear models.
 
-    Uses the Sobol' decomposition, which can be done analytically for 
+    Uses the Sobol' decomposition, which can be done analytically for
     MARS-type models. This is for the Basis class
 
     :param mod: BassBasis model
@@ -52,35 +52,35 @@ class sobolBasis:
         """
         Perform Sobol Decomp
 
-        :param int_order: an integer indicating the highest order of 
+        :param int_order: an integer indicating the highest order of
                           interactions to include in the Sobol decomposition.
-        :param prior:  a list with the same number of elements as there are 
-                       inputs to mod. Each element specifies the prior for the 
-                       particular input.  Each prior is specified as a 
-                       dictionary with elements (one of "normal", "student", 
-                       or "uniform"), "trunc" (a vector of dimension 2 
-                       indicating the lower and  upper truncation bounds, 
-                       taken to be the data bounds if omitted), and for 
-                       "normal" or "student" priors, "mean" (scalar mean of 
-                       the Normal/Student, or a vector of means for a mixture 
-                       of Normals or Students), "sd" (scalar standard deviation 
-                       of the Normal/Student, or a vector of standard 
-                       deviations for a mixture of Normals or Students), "df" 
-                       (scalar degrees of freedom of the Student, or a vector 
-                       of degrees of freedom for a mixture of Students), and 
-                       "weights" (a vector of weights that sum to one for the 
-                       mixture components, or the scalar 1).  If unspecified, 
-                       a uniform is assumed with the same bounds as are 
+        :param prior:  a list with the same number of elements as there are
+                       inputs to mod. Each element specifies the prior for the
+                       particular input.  Each prior is specified as a
+                       dictionary with elements (one of "normal", "student",
+                       or "uniform"), "trunc" (a vector of dimension 2
+                       indicating the lower and  upper truncation bounds,
+                       taken to be the data bounds if omitted), and for
+                       "normal" or "student" priors, "mean" (scalar mean of
+                       the Normal/Student, or a vector of means for a mixture
+                       of Normals or Students), "sd" (scalar standard deviation
+                       of the Normal/Student, or a vector of standard
+                       deviations for a mixture of Normals or Students), "df"
+                       (scalar degrees of freedom of the Student, or a vector
+                       of degrees of freedom for a mixture of Students), and
+                       "weights" (a vector of weights that sum to one for the
+                       mixture components, or the scalar 1).  If unspecified,
+                       a uniform is assumed with the same bounds as are
                        represented in the input to mod.
-        :param mcmc_use: an integer indicating which MCMC iteration to use for 
+        :param mcmc_use: an integer indicating which MCMC iteration to use for
                          sensitivity analysis. Defaults to the last iteration.
-        :param nind: number of Sobol indices to keep 
+        :param nind: number of Sobol indices to keep
                      (will keep the largest nind).
         :param ncores: number of cores to use (default = 1)
         """
         self.int_order = int_order
         if mcmc_use is None:
-            self.mcmc_use = self.mod.bm_list[0].nstore-1
+            self.mcmc_use = self.mod.bm_list[0].nstore - 1
         else:
             self.mcmc_use = mcmc_use
         self.nind = nind
@@ -104,11 +104,17 @@ class sobolBasis:
             if self.prior[i]["trunc"] is None:
                 self.prior[i]["trunc"] = np.array([0, 1])
             else:
-                self.prior[i]['trunc'] = uf.normalize(self.prior[i]['trunc'], bassDat.bounds[:,i])
+                self.prior[i]["trunc"] = uf.normalize(
+                    self.prior[i]["trunc"], bassDat.bounds[:, i]
+                )
 
             if self.prior[i]["dist"] == "normal" or self.prior[i]["dist"] == "student":
-                self.prior[i]['mean'] = uf.normalize(self.prior[i]['mean'], bassDat.bounds[:,i])
-                self.prior[i]['sd'] = prior[i]['sd']/(bassDat.bounds[1,i]-bassDat.bounds[0,i])
+                self.prior[i]["mean"] = uf.normalize(
+                    self.prior[i]["mean"], bassDat.bounds[:, i]
+                )
+                self.prior[i]["sd"] = prior[i]["sd"] / (
+                    bassDat.bounds[1, i] - bassDat.bounds[0, i]
+                )
                 if self.prior[i]["dist"] == "normal":
                     self.prior[i]["z"] = stats.norm.pdf(
                         (self.prior[i]["trunc"][1] - self.prior[i]["mean"])
@@ -168,7 +174,9 @@ class sobolBasis:
             mcmc_mod_usei = pc_mod[i].model_lookup[self.mcmc_use]
             for j in range(p):
                 for k in range(nb):
-                    C1Basis_array[i,j,k] = self.C1Basis(pc_mod, j, k, i, mcmc_mod_usei)
+                    C1Basis_array[i, j, k] = self.C1Basis(
+                        pc_mod, j, k, i, mcmc_mod_usei
+                    )
 
         u_list1 = []
         for i in range(int_order):
@@ -427,9 +435,9 @@ class sobolBasis:
         return out
 
     def C1Basis(self, pc_mod, l, m, pc, mcmc_mod_use):
-        n_int = pc_mod[pc].samples.n_int[mcmc_mod_use,m]
-        int_use_l = np.where(pc_mod[pc].samples.vs[mcmc_mod_use,m,:][:n_int]==l)[0]
-        
+        n_int = pc_mod[pc].samples.n_int[mcmc_mod_use, m]
+        int_use_l = np.where(pc_mod[pc].samples.vs[mcmc_mod_use, m, :][:n_int] == l)[0]
+
         if len(int_use_l) == 0:
             out = 1
             return out
@@ -445,19 +453,19 @@ class sobolBasis:
         cc = uf.const(s, t)
 
         if s == 1:
-            a = np.maximum(self.prior[l]['trunc'][0],t)
+            a = np.maximum(self.prior[l]["trunc"][0], t)
             b = self.prior[l]["trunc"][1]
             if b < t:
                 out = 0
                 return out
-            out = self.intabq1(self.prior[l],a,b,t,q)/cc
+            out = self.intabq1(self.prior[l], a, b, t, q) / cc
         else:
-            a = self.prior[l]['trunc'][0]
-            b = np.minimum(self.prior[l]['trunc'][1],t)
+            a = self.prior[l]["trunc"][0]
+            b = np.minimum(self.prior[l]["trunc"][1], t)
             if t < a:
                 out = 0
                 return out
-            out = self.intabq1(self.prior[l],a,b,t,q)*(-1)**q/cc
+            out = self.intabq1(self.prior[l], a, b, t, q) * (-1) ** q / cc
 
         return out
 
@@ -564,8 +572,8 @@ class sobolBasis:
         out = a0i * a0j + a0i * (f0j - a0j) + a0j * (f0i - a0i)
 
         if Mi > 0 and Mj > 0:
-            ai = pc_mod[i].samples.beta[self.mcmc_use, 1: (Mi + 1)]
-            aj = pc_mod[j].samples.beta[self.mcmc_use, 1: (Mj + 1)]
+            ai = pc_mod[i].samples.beta[self.mcmc_use, 1 : (Mi + 1)]
+            aj = pc_mod[j].samples.beta[self.mcmc_use, 1 : (Mj + 1)]
 
         for mi in range(Mi):
             for mj in range(Mj):
@@ -580,7 +588,9 @@ class sobolBasis:
                     temp2 = temp2 * C1Basis_array[i, l, mi] * C1Basis_array[j, l, mj]
 
                 for l in idx2:
-                    temp3 = temp3 * self.C2Basis(pc_mod,l,mi,mj,i,j,mcmc_mod_usei,mcmc_mod_usej)
+                    temp3 = temp3 * self.C2Basis(
+                        pc_mod, l, mi, mj, i, j, mcmc_mod_usei, mcmc_mod_usej
+                    )
 
                 out += temp1 * temp2 * temp3
 
@@ -588,11 +598,15 @@ class sobolBasis:
 
     def C2Basis(self, pc_mod, l, m1, m2, pc1, pc2, mcmc_mod_use1, mcmc_mod_use2):
 
-        if (l < pc_mod[pc1].data.p):
-            n_int1 = pc_mod[pc1].samples.n_int[mcmc_mod_use1,m1]            
-            int_use_l1 = np.where(pc_mod[pc1].samples.vs[mcmc_mod_use1,m1,:][:n_int1]==l)[0]
-            n_int2 = pc_mod[pc2].samples.n_int[mcmc_mod_use2,m2]    
-            int_use_l2 = np.where(pc_mod[pc2].samples.vs[mcmc_mod_use2,m2,:][:n_int2]==l)[0]
+        if l < pc_mod[pc1].data.p:
+            n_int1 = pc_mod[pc1].samples.n_int[mcmc_mod_use1, m1]
+            int_use_l1 = np.where(
+                pc_mod[pc1].samples.vs[mcmc_mod_use1, m1, :][:n_int1] == l
+            )[0]
+            n_int2 = pc_mod[pc2].samples.n_int[mcmc_mod_use2, m2]
+            int_use_l2 = np.where(
+                pc_mod[pc2].samples.vs[mcmc_mod_use2, m2, :][:n_int2] == l
+            )[0]
 
             if int_use_l1.size == 0 and int_use_l2.size == 0:
                 out = 1
@@ -620,7 +634,7 @@ class sobolBasis:
                 s1 = s2
                 s2 = temp
 
-            out = self.C22Basis(self.prior[l],t1,t2,s1,s2,q)
+            out = self.C22Basis(self.prior[l], t1, t2, s1, s2, q)
 
         return out
 
