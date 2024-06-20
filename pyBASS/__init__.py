@@ -2,6 +2,7 @@
 A python package for Bayesian Adaptive Spline Surfaces
 
 """
+
 __all__ = ["utils", "sobol", "BASS"]
 
 __version__ = "0.3.2"
