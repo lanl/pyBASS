@@ -627,13 +627,9 @@ class sobolBasis:
             t2 = pc_mod[pc2].samples.knots[mcmc_mod_use2, m2, int_use_l2]
 
             if t2 < t1:
-                temp = t1
-                t1 = t2
-                t2 = temp
-                temp = s1
-                s1 = s2
-                s2 = temp
-
+                t1, t2 = t2, t1
+                s1, s2 = s2, s1
+                
             out = self.C22Basis(self.prior[l], t1, t2, s1, s2, q)
 
         return out
