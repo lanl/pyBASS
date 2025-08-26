@@ -1,6 +1,6 @@
 [project]
 name = "pybass-emu"
-version = "0.3.3"
+dynamic = ["version"]
 description = "Bayesian Adaptive Spline Surfaces"
 authors = [
     {name = "Devin Francom", email = "dfrancom@lanl.gov"},
@@ -38,3 +38,9 @@ classifiers = [
 repository = "http://www.github.com/lanl/pybass"
 Repository = "https://github.com/lanl/pybass"
 Issues = "https://github.com/lanl/pybass/issues"
+
+[build-system]
+requires = ["setuptools>=74.1", "versioningit"]
+build-backend = "setuptools.build_meta"
+
+[tool.versioningit]
