@@ -43,7 +43,7 @@ Issues = "https://github.com/lanl/pybass/issues"
 requires = ["setuptools>=74.1", "versioningit"]
 build-backend = "setuptools.build_meta"
 
-[tool.versioningit]
+[tool.versioningit.vcs]
 method = "git"
 default-tag = "0.0.1"
 
