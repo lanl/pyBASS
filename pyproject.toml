@@ -44,3 +44,8 @@ requires = ["setuptools>=74.1", "versioningit"]
 build-backend = "setuptools.build_meta"
 
 [tool.versioningit]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.1",
+]
