@@ -44,6 +44,8 @@ requires = ["setuptools>=74.1", "versioningit"]
 build-backend = "setuptools.build_meta"
 
 [tool.versioningit]
+method = "git"
+default-tag = "0.0.1"
 
 [dependency-groups]
 dev = [
