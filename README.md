@@ -1,19 +1,24 @@
 # pyBASS
 [![Build Status][build-status-img]](https://github.com/lanl/pyBASS/actions)
+[![PyPI Version][pypi-version]](https://pypi.org/project/pybass-emu/)
+[![PyPI Downloads][monthly-downloads]](https://pypistats.org/packages/pybass-emu)
 
 A python implementation of Bayesian adaptive spline surfaces (BASS).  Similar
 to Bayesian multivariate adaptive regression splines (Bayesian MARS) introduced
 in Denison _et al_. (1998).
 
 ## Installation
-Use
 ```bash
-pip install git+https://github.com/lanl/pyBASS.git
+# pip
+pip install pybass-emu
+
+# uv
+uv add pybass-emu
 ```
 
 ## Examples
-* [Example 1](examples/ex1.md) - univariate response
-* [Example 2](examples/ex2.md) - multivariate/functional response
+* [Example 1][ex1] - univariate response
+* [Example 2][ex2] - multivariate/functional response
 
 
 ## References
@@ -46,4 +51,7 @@ LANL software release C19112
 Author: Devin Francom
 
 [build-status-img]: https://github.com/lanl/pyBASS/workflows/Build/badge.svg
-
+[pypi-version]: https://img.shields.io/pypi/v/pybass-emu?style=flat-square&label=PyPI
+[monthly-downloads]: https://img.shields.io/pypi/dm/pybass-emu?style=flat-square&label=Downloads&color=blue
+[ex1]: https://github.com/lanl/pyBASS/blob/main/examples/ex1.md
+[ex2]: https://github.com/lanl/pyBASS/blob/main/examples/ex2.md
