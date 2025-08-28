@@ -10,22 +10,14 @@ authors = [
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.9"
 keywords = ["emulator"]
-# dependencies=[
-#   "numpy",
-#   "matplotlib",
-#   "scipy",
-# ]
 classifiers = [
     'Operating System :: OS Independent',
     'Programming Language :: Python',
     'Topic :: Scientific/Engineering',
     'Topic :: Scientific/Engineering :: Mathematics',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.6',
-    'Programming Language :: Python :: 3.7',
-    'Programming Language :: Python :: 3.8',
     'Programming Language :: Python :: 3.9',
     'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
@@ -34,9 +26,10 @@ classifiers = [
     'Programming Language :: Python :: 3.14',
 ]
 dependencies = [
-    "matplotlib>=3.3.4",
-    "numpy>=1.19.5",
-    "scipy>=1.5.4",
+    "matplotlib>=3.7.5",
+    "numpy>=1.24.4",
+    "pytest>=8.4.1",
+    "scipy>=1.10.1",
 ]
 
 [project.urls]
@@ -54,6 +47,7 @@ default-tag = "0.0.1"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.3.0",
     "pytest>=7.0.1",
 ]
 
