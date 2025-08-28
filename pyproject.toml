@@ -51,3 +51,17 @@ default-tag = "0.0.1"
 dev = [
     "pytest>=7.0.1",
 ]
+
+[tool.ruff]
+line-length = 80
+preview = true
+
+[tool.ruff.lint]
+extend-select = ["I"]  # W505 (doc-line-too-long); D (pydocstyle)
+pydocstyle.convention = "numpy"
+pycodestyle.max-doc-length = 80
+
+# Ignore test file documentation linting.
+[tool.ruff.lint.extend-per-file-ignores]
+"tests/**/*.py" = ["D"]
+"src/**/__init__.py" = ["F", "E402"]

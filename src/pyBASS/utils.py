@@ -1,28 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright 2020. Triad National Security, LLC. All rights reserved.  This 
-program was produced under U.S. Government contract 89233218CNA000001 for 
-Los Alamos National Laboratory (LANL), which is operated by Triad National 
-Security, LLC for the U.S.  Department of Energy/National Nuclear Security 
-Administration. All rights in the program are reserved by Triad National 
+Copyright 2020. Triad National Security, LLC. All rights reserved.  This
+program was produced under U.S. Government contract 89233218CNA000001 for
+Los Alamos National Laboratory (LANL), which is operated by Triad National
+Security, LLC for the U.S.  Department of Energy/National Nuclear Security
+Administration. All rights in the program are reserved by Triad National
 
-Security, LLC, and the U.S. Department of Energy/National Nuclear Security 
-Administration. The Government is granted for itself and others acting on 
-its behalf a nonexclusive, paid-up, irrevocable worldwide license in this 
-material to reproduce, prepare derivative works, distribute copies to the 
+Security, LLC, and the U.S. Department of Energy/National Nuclear Security
+Administration. The Government is granted for itself and others acting on
+its behalf a nonexclusive, paid-up, irrevocable worldwide license in this
+material to reproduce, prepare derivative works, distribute copies to the
 public, perform publicly and display publicly,and to permit others to do so.
 
 LANL software release C19112
 Author: Devin Francom
 """
 
+from collections import namedtuple
+from itertools import chain, combinations
+
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sp
 from scipy.special import comb
-from itertools import combinations, chain
-from collections import namedtuple
 
 
 def abline(slope, intercept):
@@ -43,7 +44,8 @@ def ismember(a, b):
     ]  # None can be replaced by any other "not in b" value
 
 
-pos = lambda a: (abs(a) + a) / 2  # same as max(0,a)
+def pos(a):
+    return (abs(a) + a) / 2  # same as max(0,a)
 
 
 def const(signs, knots):
@@ -86,7 +88,7 @@ def comb_index(n, k):
 
 def dmwnchBass(z_vec, vars_use):
     """
-    Multivariate Walenius' noncentral hypergeometric density function with 
+    Multivariate Walenius' noncentral hypergeometric density function with
     some variables fixed
     """
     with np.errstate(divide="ignore"):
@@ -105,20 +107,22 @@ Qf = namedtuple("Qf", "R bhat qf")
 
 def getQf(XtX, Xty):
     """
-    Get the quadratic form y'X solve(X'X) X'y, as well as least squares 
+    Get the quadratic form y'X solve(X'X) X'y, as well as least squares
     beta and cholesky of X'X
     """
     try:
         R = sp.linalg.cholesky(
             XtX, lower=False
         )  # might be a better way to do this with sp.linalg.cho_factor
-    except np.linalg.LinAlgError as e:
+    except np.linalg.LinAlgError:
         return None
     dr = np.diag(R)
     if len(dr) > 1:
         if max(dr[1:]) / min(dr) > 1e3:
             return None
-    bhat = sp.linalg.solve_triangular(R, sp.linalg.solve_triangular(R, Xty, trans=1))
+    bhat = sp.linalg.solve_triangular(
+        R, sp.linalg.solve_triangular(R, Xty, trans=1)
+    )
     qf = np.dot(bhat, Xty)
     return Qf(R, bhat, qf)
 
@@ -147,12 +151,14 @@ def logProbChangeMod(n_int, vars_use, I_vec, z_vec, p, maxInt):
     return out
 
 
-CandidateBasis = namedtuple("CandidateBasis", "basis n_int signs vs knots lbmcmp")
+CandidateBasis = namedtuple(
+    "CandidateBasis", "basis n_int signs vs knots lbmcmp"
+)
 
 
 def genCandBasis(maxInt, I_vec, z_vec, p, xdata):
     """
-    Generate a candidate basis for birth step, as well as the RJMCMC 
+    Generate a candidate basis for birth step, as well as the RJMCMC
     reversibility factor and prior
     """
     n_int = int(np.random.choice(range(maxInt), p=I_vec) + 1)
