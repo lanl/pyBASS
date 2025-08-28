@@ -31,5 +31,4 @@ test-highest:
 
 # Run tests with oldest supported dependencies and smallest python version
 test-lowest:
-    # uvx -p 3.9 --with=. --resolution=lowest-direct pytest -s
     uv run -p 3.9 --isolated --resolution=lowest-direct pytest -s
