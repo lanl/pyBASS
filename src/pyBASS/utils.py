@@ -167,11 +167,11 @@ def genCandBasis(maxInt, I_vec, z_vec, p, xdata):
     knots = np.zeros(n_int)
     if n_int == 1:
         vs = np.random.choice(p)
-        knots = np.random.choice(xdata[:, vs], size=1)
+        knots = np.random.choice(xdata[:, vs])
     else:
         vs = np.sort(np.random.choice(p, size=n_int, p=z_vec, replace=False))
         for i in range(n_int):
-            knots[i] = np.random.choice(xdata[:, vs[i]], size=1)
+            knots[i] = np.random.choice(xdata[:, vs[i]])
 
     basis = makeBasis(signs, vs, knots, xdata)
     lbmcmp = logProbChangeMod(n_int, vs, I_vec, z_vec, p, maxInt)
@@ -185,9 +185,9 @@ def genBasisChange(knots, signs, vs, tochange_int, xdata):
     """Generate a condidate basis for change step"""
     knots_cand = knots.copy()
     signs_cand = signs.copy()
-    signs_cand[tochange_int] = np.random.choice([-1, 1], size=1)
+    signs_cand[tochange_int] = np.random.choice([-1, 1])
     knots_cand[tochange_int] = np.random.choice(
-        xdata[:, vs[tochange_int]], size=1
+        xdata[:, vs[tochange_int]]
     )  # np.random.rand(1)
     basis = makeBasis(signs_cand, vs, knots_cand, xdata)
     return BasisChange(basis, signs_cand, vs, knots_cand)

@@ -339,10 +339,10 @@ class BassState:
             XtX_cand = self.XtX[np.ix_(ind, ind)].copy()
             XtX_cand[tochange_basis + 1, :] = Xta
             XtX_cand[:, tochange_basis + 1] = Xta
-            XtX_cand[tochange_basis + 1, tochange_basis + 1] = ata
+            XtX_cand[tochange_basis + 1, tochange_basis + 1] = ata.item()
 
             Xty_cand = self.Xty[0 : self.nc].copy()
-            Xty_cand[tochange_basis + 1] = aty
+            Xty_cand[tochange_basis + 1] = aty.item()
 
             qf_cand = uf.getQf(XtX_cand, Xty_cand)
 
@@ -445,9 +445,9 @@ class BassModel:
         storage vectors created in init)
         """
 
-        self.samples.s2[self.k] = self.state.s2
-        self.samples.lam[self.k] = self.state.lam
-        self.samples.tau[self.k] = self.state.tau
+        self.samples.s2[self.k] = self.state.s2.item()
+        self.samples.lam[self.k] = self.state.lam.item()
+        self.samples.tau[self.k] = self.state.tau.item()
         self.samples.beta[self.k, 0 : (self.state.nbasis + 1)] = self.state.beta
         self.samples.nbasis[self.k] = self.state.nbasis
 

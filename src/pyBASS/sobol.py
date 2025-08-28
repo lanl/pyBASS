@@ -166,7 +166,7 @@ class sobolBasis:
 
         w0 = np.zeros(n_pc)
         for i in range(n_pc):
-            w0[i] = self.get_f0(pc_mod, i)
+            w0[i] = self.get_f0(pc_mod, i).item()
 
         f0r2 = (pcs @ w0) ** 2
 
@@ -488,8 +488,12 @@ class sobolBasis:
                 out = 0
                 return out
             out = self.intabq1(self.prior[ell], a, b, t, q) * (-1) ** q / cc
-
-        return out
+        if isinstance(out, int) or isinstance(out, float):
+            return out
+        elif isinstance(out, np.ndarray):
+            return out.item()
+        else:
+            raise TypeError("out is unexpected type: " + str(type(out)))
 
     def intabq1(self, prior, a, b, t, q):
         if prior["dist"] == "normal":
