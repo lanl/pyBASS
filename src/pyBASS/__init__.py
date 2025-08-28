@@ -5,8 +5,6 @@ A python package for Bayesian Adaptive Spline Surfaces
 
 __all__ = ["utils", "sobol", "BASS"]
 
-__version__ = "0.3.2"
-
 import sys
 
 if sys.version_info[0] == 3 and sys.version_info[1] < 6:
@@ -18,5 +16,5 @@ else:  # Python 3
 del sys
 
 from .BASS import *
-from .utils import *
 from .sobol import *
+from .utils import *
