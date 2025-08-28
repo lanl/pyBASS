@@ -13,7 +13,7 @@ lint-dry-run:
 lint:
     {{ pre-commit }} run -a
 
-# Start lint server to identify errors without change code 
+# Start lint server to identify errors without change code
 watch:
     {{ ruff }} check -w
 
@@ -21,7 +21,7 @@ watch:
 install-pre-commit:
     {{ pre-commit }} install
 
-# Run tests in current environment 
+# Run tests in current environment
 test:
     uv run pytest -s
 
