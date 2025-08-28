@@ -24,4 +24,4 @@ jobs:
       - name: Test against latest supported dependencies
         run: uv run --isolated --resolution=highest pytest -s
       - name: Test against oldest supported dependencies
-        run: uv run --isolated --resolution=lowest pytest -s
+        run: uv run --isolated --resolution=lowest-direct pytest -s
