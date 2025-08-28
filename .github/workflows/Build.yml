@@ -13,15 +13,13 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: [3.9, '3.13']
     steps:
       - uses: actions/checkout@v4
-      - name: Install uv and set the python version
+      - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           version: "0.8.13"
-          python-version: ${{ matrix.python-version }}
       - name: Test against latest supported dependencies
-        run: uv run -p ${{ matrix.python-version }} --isolated --resolution=highest pytest -s
+        run: uv run -p 3.14 --isolated --resolution=highest pytest -s
       - name: Test against oldest supported dependencies
-        run: uv run -p ${{ matrix.python-version }} --isolated --resolution=lowest-direct pytest -s
+        run: uv run -p 3.9 --isolated --resolution=lowest-direct pytest -s
