@@ -53,5 +53,5 @@ Author: Devin Francom
 [build-status-img]: https://github.com/lanl/pyBASS/workflows/Build/badge.svg
 [pypi-version]: https://img.shields.io/pypi/v/pybass-emu?style=flat-square&label=PyPI
 [monthly-downloads]: https://img.shields.io/pypi/dm/pybass-emu?style=flat-square&label=Downloads&color=blue
-[ex1]: https://github.com/lanl/pyBASS/blob/main/examples/ex1.md
-[ex2]: https://github.com/lanl/pyBASS/blob/main/examples/ex2.md
+[ex1]: https://github.com/lanl/pyBASS/blob/main/examples/ex1.ipynb
+[ex2]: https://github.com/lanl/pyBASS/blob/main/examples/ex2.ipynb
