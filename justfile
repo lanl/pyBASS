@@ -19,3 +19,6 @@ install-pre-commit:
 
 test:
     uv run pytest -s
+
+test-oldest:
+    uvx -p3.8 --with=. --resolution=lowest-direct pytest -s
