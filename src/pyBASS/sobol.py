@@ -1,33 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright 2020. Triad National Security, LLC. All rights reserved.  This 
-program was produced under U.S. Government contract 89233218CNA000001 for 
-Los Alamos National Laboratory (LANL), which is operated by Triad National 
-Security, LLC for the U.S.  Department of Energy/National Nuclear Security 
-Administration. All rights in the program are reserved by Triad National 
+Copyright 2020. Triad National Security, LLC. All rights reserved.  This
+program was produced under U.S. Government contract 89233218CNA000001 for
+Los Alamos National Laboratory (LANL), which is operated by Triad National
+Security, LLC for the U.S.  Department of Energy/National Nuclear Security
+Administration. All rights in the program are reserved by Triad National
 
-Security, LLC, and the U.S. Department of Energy/National Nuclear Security 
-Administration. The Government is granted for itself and others acting on 
-its behalf a nonexclusive, paid-up, irrevocable worldwide license in this 
-material to reproduce, prepare derivative works, distribute copies to the 
+Security, LLC, and the U.S. Department of Energy/National Nuclear Security
+Administration. The Government is granted for itself and others acting on
+its behalf a nonexclusive, paid-up, irrevocable worldwide license in this
+material to reproduce, prepare derivative works, distribute copies to the
 public, perform publicly and display publicly,and to permit others to do so.
 
 LANL software release C19112
 Author: J. Derek Tucker
 """
 
-from pyBASS import BassBasis
-import numpy as np
-import scipy as sp
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import pyBASS.utils as uf
 import itertools
-from scipy import stats
+import math
 import re
 import time
-import math
+
+import matplotlib.cm as cm
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy as sp
+from scipy import stats
+
+import pyBASS.utils as uf
+from pyBASS import BassBasis
 
 
 class sobolBasis:
@@ -108,7 +110,10 @@ class sobolBasis:
                     self.prior[i]["trunc"], bassDat.bounds[:, i]
                 )
 
-            if self.prior[i]["dist"] == "normal" or self.prior[i]["dist"] == "student":
+            if (
+                self.prior[i]["dist"] == "normal"
+                or self.prior[i]["dist"] == "student"
+            ):
                 self.prior[i]["mean"] = uf.normalize(
                     self.prior[i]["mean"], bassDat.bounds[:, i]
                 )
@@ -161,7 +166,7 @@ class sobolBasis:
 
         w0 = np.zeros(n_pc)
         for i in range(n_pc):
-            w0[i] = self.get_f0(pc_mod, i)
+            w0[i] = self.get_f0(pc_mod, i).item()
 
         f0r2 = (pcs @ w0) ** 2
 
@@ -207,7 +212,9 @@ class sobolBasis:
 
         if int_order > 1:
             for i in range(2, int_order + 1):
-                idx = np.sum(ncombs_vec[0 : (i - 1)]) + np.arange(0, len(u_list[i - 1]))
+                idx = np.sum(ncombs_vec[0 : (i - 1)]) + np.arange(
+                    0, len(u_list[i - 1])
+                )
                 ints.append(np.zeros((ints1[0].shape[0], idx.shape[0])))
                 cnt = 0
                 for j in idx:
@@ -225,7 +232,9 @@ class sobolBasis:
                 for j in range(len(u_list[i])):
                     cc = np.zeros(nxfunc)
                     for k in range(i):
-                        ind = [np.all(np.in1d(x, u_list[i][j])) for x in u_list[k]]
+                        ind = [
+                            np.all(np.in1d(x, u_list[i][j])) for x in u_list[k]
+                        ]
                         cc += (-1) ** (i - k) * np.sum(ints[k][:, ind], axis=1)
                     sob[i][:, j] = ints[i][:, j] + cc
 
@@ -312,20 +321,25 @@ class sobolBasis:
         rgb[-1, 0:3] = np.array([153, 153, 153]) / 255
 
         ord = time.argsort()
-        x_mean = np.vstack(
-            [self.S[:ncomb, :], np.sum(self.S[ncomb:, :], axis=0, keepdims=True)]
-        )
+        x_mean = np.vstack([
+            self.S[:ncomb, :],
+            np.sum(self.S[ncomb:, :], axis=0, keepdims=True),
+        ])
         sens = np.cumsum(x_mean, axis=0).T
         fig, axs = plt.subplots(1, 2 + total_sobol)
         cnt = 0
         for i in range(ncomb + 1):
             x2 = np.concatenate((time[ord], np.flip(time[ord])))
             if i == 0:
-                inBetween = np.concatenate(
-                    (np.zeros(time[ord].shape[0]), np.flip(sens[ord, i]))
-                )
+                inBetween = np.concatenate((
+                    np.zeros(time[ord].shape[0]),
+                    np.flip(sens[ord, i]),
+                ))
             else:
-                inBetween = np.concatenate((sens[ord, i - 1], np.flip(sens[ord, i])))
+                inBetween = np.concatenate((
+                    sens[ord, i - 1],
+                    np.flip(sens[ord, i]),
+                ))
             if (cnt % rgb.shape[0] + 1) == 0:
                 cnt = 0
 
@@ -346,35 +360,39 @@ class sobolBasis:
             cs[1:, :] = np.cumsum(x_mean, axis=0)
             cs_diff = np.zeros((x_mean.shape[0], x_mean.shape[1]))
             for i in range(x_mean.shape[1]):
-                cs_diff[:, i] = np.diff(np.cumsum(np.concatenate((0, x_mean[:, 0]))))
+                cs_diff[:, i] = np.diff(
+                    np.cumsum(np.concatenate((0, x_mean[:, 0])))
+                )
             tmp = np.concatenate((np.arange(0, lab_x.shape[0]), lab_x))
             ind = np.ravel_multi_index(
                 np.concatenate((tmp[:, 0], tmp[:, 1])), dims=cs.shape, order="F"
             )
             ind1 = np.ravel_multi_index(
-                np.concatenate((tmp[:, 0], tmp[:, 1])), dims=cs_diff.shape, order="F"
+                np.concatenate((tmp[:, 0], tmp[:, 1])),
+                dims=cs_diff.shape,
+                order="F",
             )
             cs_diff2 = cs_diff / 2
             plt.text(time[lab_x], cs[ind] + cs_diff2[ind1], self.names_ind)
 
-        x_mean_var = np.vstack(
-            [
-                self.S_var[:ncomb, :],
-                np.sum(self.S_var[ncomb:, :], axis=0, keepdims=True),
-            ]
-        )
+        x_mean_var = np.vstack([
+            self.S_var[:ncomb, :],
+            np.sum(self.S_var[ncomb:, :], axis=0, keepdims=True),
+        ])
         sens_var = np.cumsum(x_mean_var, axis=0).T
         cnt = 0
         for i in range(ncomb + 1):
             x2 = np.concatenate((time[ord], np.flip(time[ord])))
             if i == 0:
-                inBetween = np.concatenate(
-                    (np.zeros(time[ord].shape[0]), np.flip(sens_var[ord, i]))
-                )
+                inBetween = np.concatenate((
+                    np.zeros(time[ord].shape[0]),
+                    np.flip(sens_var[ord, i]),
+                ))
             else:
-                inBetween = np.concatenate(
-                    (sens_var[ord, i - 1], np.flip(sens_var[ord, i]))
-                )
+                inBetween = np.concatenate((
+                    sens_var[ord, i - 1],
+                    np.flip(sens_var[ord, i]),
+                ))
             if (cnt % rgb.shape[0] + 1) == 0:
                 cnt = 0
 
@@ -399,13 +417,15 @@ class sobolBasis:
             for i in range(p):
                 x2 = np.concatenate((time[ord], np.flip(time[ord])))
                 if i == 0:
-                    inBetween = np.concatenate(
-                        (np.zeros(time[ord].shape[0]), np.flip(sens_tot[ord, i]))
-                    )
+                    inBetween = np.concatenate((
+                        np.zeros(time[ord].shape[0]),
+                        np.flip(sens_tot[ord, i]),
+                    ))
                 else:
-                    inBetween = np.concatenate(
-                        (sens_tot[ord, i - 1], np.flip(sens_tot[ord, i]))
-                    )
+                    inBetween = np.concatenate((
+                        sens_tot[ord, i - 1],
+                        np.flip(sens_tot[ord, i]),
+                    ))
                 if (cnt % rgb.shape[0] + 1) == 0:
                     cnt = 0
 
@@ -429,14 +449,16 @@ class sobolBasis:
         if pc_mod[pc].samples.nbasis[self.mcmc_use] > 0:
             for m in range(pc_mod[pc].samples.nbasis[self.mcmc_use]):
                 out1 = pc_mod[pc].samples.beta[self.mcmc_use, 1 + m]
-                for l in range(pc_mod[pc].data.p):
-                    out1 = out1 * self.C1Basis(pc_mod, l, m, pc, mcmc_mod_use)
+                for ell in range(pc_mod[pc].data.p):
+                    out1 = out1 * self.C1Basis(pc_mod, ell, m, pc, mcmc_mod_use)
                 out += out1
         return out
 
-    def C1Basis(self, pc_mod, l, m, pc, mcmc_mod_use):
+    def C1Basis(self, pc_mod, ell, m, pc, mcmc_mod_use):
         n_int = pc_mod[pc].samples.n_int[mcmc_mod_use, m]
-        int_use_l = np.where(pc_mod[pc].samples.vs[mcmc_mod_use, m, :][:n_int] == l)[0]
+        int_use_l = np.where(
+            pc_mod[pc].samples.vs[mcmc_mod_use, m, :][:n_int] == ell
+        )[0]
 
         if len(int_use_l) == 0:
             out = 1
@@ -453,21 +475,25 @@ class sobolBasis:
         cc = uf.const(s, t)
 
         if s == 1:
-            a = np.maximum(self.prior[l]["trunc"][0], t)
-            b = self.prior[l]["trunc"][1]
+            a = np.maximum(self.prior[ell]["trunc"][0], t)
+            b = self.prior[ell]["trunc"][1]
             if b < t:
                 out = 0
                 return out
-            out = self.intabq1(self.prior[l], a, b, t, q) / cc
+            out = self.intabq1(self.prior[ell], a, b, t, q) / cc
         else:
-            a = self.prior[l]["trunc"][0]
-            b = np.minimum(self.prior[l]["trunc"][1], t)
+            a = self.prior[ell]["trunc"][0]
+            b = np.minimum(self.prior[ell]["trunc"][1], t)
             if t < a:
                 out = 0
                 return out
-            out = self.intabq1(self.prior[l], a, b, t, q) * (-1) ** q / cc
-
-        return out
+            out = self.intabq1(self.prior[ell], a, b, t, q) * (-1) ** q / cc
+        if isinstance(out, int) or isinstance(out, float):
+            return out
+        elif isinstance(out, np.ndarray):
+            return out.item()
+        else:
+            raise TypeError("out is unexpected type: " + str(type(out)))
 
     def intabq1(self, prior, a, b, t, q):
         if prior["dist"] == "normal":
@@ -483,7 +509,9 @@ class sobolBasis:
                 bst = (b - prior["mean"][k]) / prior["sd"][k]
                 dnb = stats.norm.cdf(bst)
                 dna = stats.norm.cdf(ast)
-                tnorm_mean_zk = prior["mean"][k] * zk - prior["sd"][k] * (dnb - dna)
+                tnorm_mean_zk = prior["mean"][k] * zk - prior["sd"][k] * (
+                    dnb - dna
+                )
                 out += prior["weights"][k] * (tnorm_mean_zk - t * zk)
 
         if prior["dist"] == "student":
@@ -530,7 +558,7 @@ class sobolBasis:
 
         return out
 
-    def robust2f1(sself, a, b, c, x):
+    def robust2f1(self, a, b, c, x):
         if np.abs(x) < 1:
             z = sp.special.hyp2f1(a, b, c, np.array([0, x]))
             out = z[-1]
@@ -584,28 +612,33 @@ class sobolBasis:
                 idx2 = u
                 idx = np.delete(idx, idx2)
 
-                for l in idx:
-                    temp2 = temp2 * C1Basis_array[i, l, mi] * C1Basis_array[j, l, mj]
+                for ell in idx:
+                    temp2 = (
+                        temp2
+                        * C1Basis_array[i, ell, mi]
+                        * C1Basis_array[j, ell, mj]
+                    )
 
-                for l in idx2:
+                for ell in idx2:
                     temp3 = temp3 * self.C2Basis(
-                        pc_mod, l, mi, mj, i, j, mcmc_mod_usei, mcmc_mod_usej
+                        pc_mod, ell, mi, mj, i, j, mcmc_mod_usei, mcmc_mod_usej
                     )
 
                 out += temp1 * temp2 * temp3
 
         return out
 
-    def C2Basis(self, pc_mod, l, m1, m2, pc1, pc2, mcmc_mod_use1, mcmc_mod_use2):
-
-        if l < pc_mod[pc1].data.p:
+    def C2Basis(
+        self, pc_mod, ell, m1, m2, pc1, pc2, mcmc_mod_use1, mcmc_mod_use2
+    ):
+        if ell < pc_mod[pc1].data.p:
             n_int1 = pc_mod[pc1].samples.n_int[mcmc_mod_use1, m1]
             int_use_l1 = np.where(
-                pc_mod[pc1].samples.vs[mcmc_mod_use1, m1, :][:n_int1] == l
+                pc_mod[pc1].samples.vs[mcmc_mod_use1, m1, :][:n_int1] == ell
             )[0]
             n_int2 = pc_mod[pc2].samples.n_int[mcmc_mod_use2, m2]
             int_use_l2 = np.where(
-                pc_mod[pc2].samples.vs[mcmc_mod_use2, m2, :][:n_int2] == l
+                pc_mod[pc2].samples.vs[mcmc_mod_use2, m2, :][:n_int2] == ell
             )[0]
 
             if int_use_l1.size == 0 and int_use_l2.size == 0:
@@ -613,11 +646,11 @@ class sobolBasis:
                 return out
 
             if int_use_l1.size == 0:
-                out = self.C1Basis(pc_mod, l, m2, pc2, mcmc_mod_use2)
+                out = self.C1Basis(pc_mod, ell, m2, pc2, mcmc_mod_use2)
                 return out
 
             if int_use_l2.size == 0:
-                out = self.C1Basis(pc_mod, l, m1, pc1, mcmc_mod_use1)
+                out = self.C1Basis(pc_mod, ell, m1, pc1, mcmc_mod_use1)
                 return out
 
             q = 1
@@ -629,8 +662,8 @@ class sobolBasis:
             if t2 < t1:
                 t1, t2 = t2, t1
                 s1, s2 = s2, s1
-                
-            out = self.C22Basis(self.prior[l], t1, t2, s1, s2, q)
+
+            out = self.C22Basis(self.prior[ell], t1, t2, s1, s2, q)
 
         return out
 
@@ -674,11 +707,17 @@ class sobolBasis:
                 bst = (b - prior["mean"][k]) / prior["sd"][k]
                 dnb = stats.norm.cdf(bst)
                 dna = stats.norm.cdf(ast)
-                tnorm_mean_zk = prior["mean"][k] * zk - prior["sd"][k] * (dnb - dna)
+                tnorm_mean_zk = prior["mean"][k] * zk - prior["sd"][k] * (
+                    dnb - dna
+                )
                 tnorm_var_zk = (
                     zk
                     * prior["sd"][k] ** 2
-                    * (1 + (ast * dna - bst * dnb) / zk - ((dna - dnb) / zk) ** 2)
+                    * (
+                        1
+                        + (ast * dna - bst * dnb) / zk
+                        - ((dna - dnb) / zk) ** 2
+                    )
                     + tnorm_mean_zk**2 / zk
                 )
                 out += prior["weights"][k] * (

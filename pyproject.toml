@@ -10,28 +10,23 @@ authors = [
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.9"
 keywords = ["emulator"]
-dependencies=[
-  "numpy",
-  "matplotlib",
-  "scipy",
-]
 classifiers = [
     'Operating System :: OS Independent',
-    'Programming Language :: Python',
     'Topic :: Scientific/Engineering',
     'Topic :: Scientific/Engineering :: Mathematics',
-    'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.6',
-    'Programming Language :: Python :: 3.7',
-    'Programming Language :: Python :: 3.8',
     'Programming Language :: Python :: 3.9',
     'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
     'Programming Language :: Python :: 3.12',
     'Programming Language :: Python :: 3.13',
     'Programming Language :: Python :: 3.14',
+]
+dependencies = [
+    "matplotlib>=3.7.3",
+    "numpy>=1.24.4",
+    "scipy>=1.10.1",
 ]
 
 [project.urls]
@@ -40,7 +35,7 @@ Repository = "https://github.com/lanl/pybass"
 Issues = "https://github.com/lanl/pybass/issues"
 
 [build-system]
-requires = ["setuptools>=74.1", "versioningit"]
+requires = ["setuptools>=68.1", "versioningit"]
 build-backend = "setuptools.build_meta"
 
 [tool.versioningit.vcs]
@@ -49,5 +44,20 @@ default-tag = "0.0.1"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.3.0",
     "pytest>=7.0.1",
 ]
+
+[tool.ruff]
+line-length = 80
+preview = true
+
+[tool.ruff.lint]
+extend-select = ["I"]  # W505 (doc-line-too-long); D (pydocstyle)
+pydocstyle.convention = "numpy"
+pycodestyle.max-doc-length = 80
+
+# Ignore test file documentation linting.
+[tool.ruff.lint.extend-per-file-ignores]
+"tests/**/*.py" = ["D"]
+"src/**/__init__.py" = ["F", "E402"]
