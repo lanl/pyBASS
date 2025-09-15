@@ -35,35 +35,38 @@ def abline(slope: float, intercept: float):
     plt.plot(x_vals, y_vals, "--", color="red")
 
 
-def ismember(a, b):
-    bind = {}
-    for i, elt in enumerate(b):
-        if elt not in bind:
-            bind[elt] = i
-    return [
-        bind.get(itm, None) for itm in a
-    ]  # None can be replaced by any other "not in b" value
+# def ismember(a, b):
+#     bind = {}
+#     for i, elt in enumerate(b):
+#         if elt not in bind:
+#             bind[elt] = i
+#     return [
+#         bind.get(itm, None) for itm in a
+#     ]  # None can be replaced by any other "not in b" value
 
 
 def pos(a: ndarray | float):
     return np.maximum(a, 0)
 
 
-def const(signs: ndarray, knots: ndarray) -> float:
+def const(signs: ndarray, knots: ndarray | float) -> float:
     """Get max value of BASS basis function, assuming 0-1 range of inputs"""
-    c = np.prod(((signs + 1) / 2 - signs * knots))
+    c = np.prod((signs + 1) / 2 - signs * knots).astype(float)
     return 1.0 if c == 0 else c
 
 
 def makeBasis(
-    signs: ndarray, vs: ndarray, knots: ndarray, xdata: ndarray
+    signs: ndarray,
+    vs: ndarray | int,
+    knots: ndarray | float,
+    xdata: ndarray,
 ) -> ndarray:
     """Make basis function using continuous variables"""
-    norm_const = const(signs, knots)
+    norm_constant = const(signs, knots)
     activation = pos(signs * (xdata[:, vs] - knots))
     if len(signs) == 1:
-        return activation.squeeze() / norm_const
-    return np.prod(activation, axis=1) / norm_const
+        return activation.squeeze() / norm_constant
+    return np.prod(activation, axis=1) / norm_constant
 
 
 def normalize(x: ndarray, bounds: ndarray):
@@ -105,7 +108,7 @@ def dmwnchBass(z_vec: ndarray, vars_use: ndarray):
 Qf = namedtuple("Qf", "R bhat qf")
 
 
-def getQf(XtX, Xty):
+def getQf(XtX: ndarray, Xty: ndarray):
     """
     Get the quadratic form y'X solve(X'X) X'y, as well as least squares
     beta and cholesky of X'X
@@ -127,8 +130,15 @@ def getQf(XtX, Xty):
     return Qf(R, bhat, qf)
 
 
-def logProbChangeMod(n_int, vars_use, I_vec, z_vec, p, maxInt):
-    """Get reversibility factor for RJMCMC acceptance ratio, and also prior"""
+def logProbChangeMod(
+    n_int: int,
+    vars_use: int | ndarray,
+    I_vec: ndarray,
+    z_vec: ndarray,
+    p: int,
+    maxInt: int,
+) -> float:
+    """Get reversibility factor for RJMCMC acceptance ratio, and also prior."""
     if n_int == 1:
         out = (
             np.log(I_vec[n_int - 1])
@@ -156,22 +166,20 @@ CandidateBasis = namedtuple(
 )
 
 
-def genCandBasis(maxInt, I_vec, z_vec, p, xdata):
+def genCandBasis(maxInt, I_vec, z_vec, p, xdata) -> CandidateBasis:
     """
     Generate a candidate basis for birth step, as well as the RJMCMC
     reversibility factor and prior
     """
-    n_int = int(np.random.choice(range(maxInt), p=I_vec) + 1)
+    n_int = np.random.choice(maxInt, p=I_vec) + 1
     signs = np.random.choice([-1, 1], size=n_int, replace=True)
-    # knots = np.random.rand(n_int)
-    knots = np.zeros(n_int)
+
     if n_int == 1:
         vs = np.random.choice(p)
         knots = np.random.choice(xdata[:, vs])
     else:
         vs = np.sort(np.random.choice(p, size=n_int, p=z_vec, replace=False))
-        for i in range(n_int):
-            knots[i] = np.random.choice(xdata[:, vs[i]])
+        knots = np.array([np.random.choice(xdata[:, vi]) for vi in vs])
 
     basis = makeBasis(signs, vs, knots, xdata)
     lbmcmp = logProbChangeMod(n_int, vs, I_vec, z_vec, p, maxInt)
@@ -187,7 +195,7 @@ def genBasisChange(
     vs: ndarray,
     tochange_int: int,
     xdata: ndarray,
-):
+) -> BasisChange:
     """Generate a condidate basis for change step"""
     knots_cand = knots.copy()
     signs_cand = signs.copy()
