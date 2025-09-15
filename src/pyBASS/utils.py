@@ -19,6 +19,7 @@ Author: Devin Francom
 
 from collections import namedtuple
 from itertools import chain, combinations
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -45,11 +46,11 @@ def abline(slope: float, intercept: float):
 #     ]  # None can be replaced by any other "not in b" value
 
 
-def pos(a: ndarray | float):
+def pos(a: Union[ndarray, float]):
     return np.maximum(a, 0)
 
 
-def const(signs: ndarray, knots: ndarray | float) -> float:
+def const(signs: ndarray, knots: Union[ndarray, float]) -> float:
     """Get max value of BASS basis function, assuming 0-1 range of inputs"""
     c = np.prod((signs + 1) / 2 - signs * knots).astype(float)
     return 1.0 if c == 0 else c
@@ -57,8 +58,8 @@ def const(signs: ndarray, knots: ndarray | float) -> float:
 
 def makeBasis(
     signs: ndarray,
-    vs: ndarray | int,
-    knots: ndarray | float,
+    vs: Union[ndarray, int],
+    knots: Union[ndarray, float],
     xdata: ndarray,
 ) -> ndarray:
     """Make basis function using continuous variables"""
@@ -132,7 +133,7 @@ def getQf(XtX: ndarray, Xty: ndarray):
 
 def logProbChangeMod(
     n_int: int,
-    vars_use: int | ndarray,
+    vars_use: Union[int, ndarray],
     I_vec: ndarray,
     z_vec: ndarray,
     p: int,
