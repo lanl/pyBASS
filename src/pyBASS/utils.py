@@ -19,14 +19,16 @@ Author: Devin Francom
 
 from collections import namedtuple
 from itertools import chain, combinations
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sp
+from numpy import ndarray
 from scipy.special import comb
 
 
-def abline(slope, intercept):
+def abline(slope: float, intercept: float):
     """Plot a line from slope and intercept"""
     axes = plt.gca()
     x_vals = np.array(axes.get_xlim())
@@ -34,49 +36,51 @@ def abline(slope, intercept):
     plt.plot(x_vals, y_vals, "--", color="red")
 
 
-def ismember(a, b):
-    bind = {}
-    for i, elt in enumerate(b):
-        if elt not in bind:
-            bind[elt] = i
-    return [
-        bind.get(itm, None) for itm in a
-    ]  # None can be replaced by any other "not in b" value
+# def ismember(a, b):
+#     bind = {}
+#     for i, elt in enumerate(b):
+#         if elt not in bind:
+#             bind[elt] = i
+#     return [
+#         bind.get(itm, None) for itm in a
+#     ]  # None can be replaced by any other "not in b" value
 
 
-def pos(a):
-    return (abs(a) + a) / 2  # same as max(0,a)
+def pos(a: Union[ndarray, float]):
+    return np.maximum(a, 0)
 
 
-def const(signs, knots):
+def const(signs: ndarray, knots: Union[ndarray, float]) -> float:
     """Get max value of BASS basis function, assuming 0-1 range of inputs"""
-    cc = np.prod(((signs + 1) / 2 - signs * knots))
-    if cc == 0:
-        return 1
-    return cc
+    c = np.prod((signs + 1) / 2 - signs * knots).astype(float)
+    return 1.0 if c == 0 else c
 
 
-def makeBasis(signs, vs, knots, xdata):
+def makeBasis(
+    signs: ndarray,
+    vs: Union[ndarray, int],
+    knots: Union[ndarray, float],
+    xdata: ndarray,
+) -> ndarray:
     """Make basis function using continuous variables"""
-    cc = const(signs, knots)
-    temp1 = pos(signs * (xdata[:, vs] - knots))
+    norm_constant = const(signs, knots)
+    activation = pos(signs * (xdata[:, vs] - knots))
     if len(signs) == 1:
-        return temp1 / cc
-    temp2 = np.prod(temp1, axis=1) / cc
-    return temp2
+        return activation.squeeze() / norm_constant
+    return np.prod(activation, axis=1) / norm_constant
 
 
-def normalize(x, bounds):
+def normalize(x: ndarray, bounds: ndarray):
     """Normalize to 0-1 scale"""
     return (x - bounds[:, 0]) / (bounds[:, 1] - bounds[:, 0])
 
 
-def unnormalize(z, bounds):
+def unnormalize(z: ndarray, bounds: ndarray):
     """Inverse of normalize"""
     return z * (bounds[:, 1] - bounds[:, 0]) + bounds[:, 0]
 
 
-def comb_index(n, k):
+def comb_index(n: int, k: int):
     """Get all combinations of indices from 0:n of length k"""
     # https://stackoverflow.com/questions/16003217/n-d-version-of-itertools-combinations-in-numpy
     count = comb(n, k, exact=True)
@@ -86,7 +90,7 @@ def comb_index(n, k):
     return index.reshape(-1, k)
 
 
-def dmwnchBass(z_vec, vars_use):
+def dmwnchBass(z_vec: ndarray, vars_use: ndarray):
     """
     Multivariate Walenius' noncentral hypergeometric density function with
     some variables fixed
@@ -105,7 +109,7 @@ def dmwnchBass(z_vec, vars_use):
 Qf = namedtuple("Qf", "R bhat qf")
 
 
-def getQf(XtX, Xty):
+def getQf(XtX: ndarray, Xty: ndarray):
     """
     Get the quadratic form y'X solve(X'X) X'y, as well as least squares
     beta and cholesky of X'X
@@ -127,8 +131,15 @@ def getQf(XtX, Xty):
     return Qf(R, bhat, qf)
 
 
-def logProbChangeMod(n_int, vars_use, I_vec, z_vec, p, maxInt):
-    """Get reversibility factor for RJMCMC acceptance ratio, and also prior"""
+def logProbChangeMod(
+    n_int: int,
+    vars_use: Union[int, ndarray],
+    I_vec: ndarray,
+    z_vec: ndarray,
+    p: int,
+    maxInt: int,
+) -> float:
+    """Get reversibility factor for RJMCMC acceptance ratio, and also prior."""
     if n_int == 1:
         out = (
             np.log(I_vec[n_int - 1])
@@ -156,22 +167,20 @@ CandidateBasis = namedtuple(
 )
 
 
-def genCandBasis(maxInt, I_vec, z_vec, p, xdata):
+def genCandBasis(maxInt, I_vec, z_vec, p, xdata) -> CandidateBasis:
     """
     Generate a candidate basis for birth step, as well as the RJMCMC
     reversibility factor and prior
     """
-    n_int = int(np.random.choice(range(maxInt), p=I_vec) + 1)
+    n_int = np.random.choice(maxInt, p=I_vec) + 1
     signs = np.random.choice([-1, 1], size=n_int, replace=True)
-    # knots = np.random.rand(n_int)
-    knots = np.zeros(n_int)
+
     if n_int == 1:
         vs = np.random.choice(p)
         knots = np.random.choice(xdata[:, vs])
     else:
         vs = np.sort(np.random.choice(p, size=n_int, p=z_vec, replace=False))
-        for i in range(n_int):
-            knots[i] = np.random.choice(xdata[:, vs[i]])
+        knots = np.array([np.random.choice(xdata[:, vi]) for vi in vs])
 
     basis = makeBasis(signs, vs, knots, xdata)
     lbmcmp = logProbChangeMod(n_int, vs, I_vec, z_vec, p, maxInt)
@@ -181,7 +190,13 @@ def genCandBasis(maxInt, I_vec, z_vec, p, xdata):
 BasisChange = namedtuple("BasisChange", "basis signs vs knots")
 
 
-def genBasisChange(knots, signs, vs, tochange_int, xdata):
+def genBasisChange(
+    knots: ndarray,
+    signs: ndarray,
+    vs: ndarray,
+    tochange_int: int,
+    xdata: ndarray,
+) -> BasisChange:
     """Generate a condidate basis for change step"""
     knots_cand = knots.copy()
     signs_cand = signs.copy()
