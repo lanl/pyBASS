@@ -96,7 +96,7 @@ def dmwnchBass(z_vec: ndarray, vars_use: ndarray):
     some variables fixed
     """
     with np.errstate(divide="ignore"):
-        alpha = z_vec[vars_use - 1] / sum(np.delete(z_vec, vars_use))
+        alpha = z_vec[vars_use] / sum(np.delete(z_vec, vars_use))
     j = len(alpha)
     ss = 1 + (-1) ** j * 1 / (sum(alpha) + 1)
     for i in range(j - 1):
