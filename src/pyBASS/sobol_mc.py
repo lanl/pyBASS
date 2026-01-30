@@ -19,8 +19,12 @@ Author: Devin Francom
 
 from itertools import combinations
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+from pyBASS import BassModel
+from pyBASS.utils import normalize
 
 
 def getCombs(mod, uniq_models, nmodels, max_basis, max_int_tot, func_var=None):
@@ -429,47 +433,84 @@ def get_tot_MC(sob):
     return pd.DataFrame(tot, columns=vars_use)
 
 
-def sobol_MC(mod, mcmc_use=None, xx=None, ncores=1):
+class sobolMC:
     """
-    Get Sobol indices for multiple BASS MCMC iterations and combine them into a dataframe.
-    """
-    if xx is None:
-        xx = mod.data.xx
-    if mcmc_use is None:
-        mcmc_use = np.arange(len(mod.samples.nbasis))
-    sob = get_sob(mcmc_use=mcmc_use, mod=mod, xx=xx, ncores=ncores)
-    ord = []
-    en = [list(map(int, x.split("x"))) for x in sob["S"].columns]
-    en_len = [len(x) for x in en]
-    for i in range(1, max(en_len) + 1):
-        tmp = np.array([x for x in en if len(x) == i])
-        iord = np.lexsort(tmp.T)
-        ord.extend([np.where(np.array(en_len) == i)[0][j] for j in iord])
-    return {
-        "S": sob["S"].iloc[:, ord],
-        "T": get_tot_MC(sob["S"].iloc[:, ord]),
-        "tot_var": sob["tot_var"],
-    }
+    **Bayesian Adaptive Spline Surfaces - Sobol or subset Sobol sensitivity via Monte Carlo**
 
+    This class is initialized with a fitted BASS model and has methods for the Sobol
+      decomposition (via Monte Carlo) and plotting.
+    """
 
-def subset_sobol_MC(mod, subsets, mcmc_use=None, xx=None):
-    """
-    Get Sobol indices for multiple BASS MCMC iterations and combine them into a dataframe.
-    """
-    if xx is None:
-        xx = mod.data.xx
-    if mcmc_use is None:
-        mcmc_use = np.arange(len(mod.samples.nbasis))
-    sob = get_sob_sub(mcmc_use=mcmc_use, mod=mod, xx=xx, subsets=subsets)
-    ord = []
-    en = [list(map(int, x.split("x"))) for x in sob["S"].columns]
-    en_len = [len(x) for x in en]
-    for i in range(1, max(en_len) + 1):
-        tmp = np.array([x for x in en if len(x) == i])
-        iord = np.lexsort(tmp.T)
-        ord.extend([np.where(np.array(en_len) == i)[0][j] for j in iord])
-    return {
-        "S": sob["S"].iloc[:, ord],
-        "T": get_tot_MC(sob["S"].iloc[:, ord]),
-        "tot_var": sob["tot_var"],
-    }
+    def __init__(self, mod: BassModel):
+        self.mod = mod
+        return
+
+    def decomp(self, xx=None, subsets=None, mcmc_use=None, ncores=1):
+        """
+        **BASS Sobol or subset Sobol sensitivity via Monte Carlo**
+
+        This function uses BASS-specific Monte Carlo (for speed) to get the Sobol 
+          decomposition for a BASS model (or ensemble of MCMC samples of BASS models).
+
+        :xx: matrix (numpy.ndarray) of input variations. Defaults to the training 
+          data for the BASS model.
+        :subsets: for subset Sobol, a partition of the inputs represented through a
+          list of lists. Defaults to no subsetting.
+        :param mcmc_use: which MCMC samples to use (list of integers of length
+                            m).  Defaults to all MCMC samples.
+        :ncores: not yet used.
+        :return: updates the object to have the following for each value of mcmc_use:
+          self.S (Sobol indices of all orders), self.T (total indices), and self.tot_var
+            (total variance).
+        """
+        if xx is None:
+            xx = self.mod.data.xx
+        else:
+            xx = normalize(xx, self.mod.data.bounds)
+        if mcmc_use is None:
+            mcmc_use = np.arange(len(self.mod.samples.nbasis))
+
+        if subsets is None:
+            sob = get_sob(mcmc_use=mcmc_use, mod=self.mod, xx=xx, ncores=ncores)
+        else:
+            sob = get_sob_sub(mcmc_use=mcmc_use, mod=self.mod, xx=xx, subsets=subsets)
+        
+        ord = []
+        en = [list(map(int, x.split("x"))) for x in sob["S"].columns]
+        en_len = [len(x) for x in en]
+        for i in range(1, max(en_len) + 1):
+            tmp = np.array([x for x in en if len(x) == i])
+            iord = np.lexsort(tmp.T)
+            ord.extend([np.where(np.array(en_len) == i)[0][j] for j in iord])
+        self.S = sob["S"].iloc[:, ord]
+        self.T = get_tot_MC(sob["S"].iloc[:, ord])
+        self.tot_var = sob["tot_var"]
+
+        return
+    
+    def plot(self):
+        """
+        **BASS plots of Sobol or subset Sobol sensitivity via Monte Carlo**
+
+        This function plots boxplots of Sobol indices of all orders and total indices.
+          The boxplots are from BASS MCMC iterations. If subsets are specified, the 
+          labels of effects are for the list of subsets.
+
+        """
+        fig = plt.figure()
+
+        fig.add_subplot(1, 2, 1)
+        self.S.boxplot(whis=[0, 100])
+        plt.ylabel("proportion variance explained")
+        plt.xlabel("effect")
+        plt.xticks(rotation=90)
+
+        fig.add_subplot(1, 2, 2)
+        self.T.boxplot(whis=[0, 100])
+        plt.ylabel("total effect")
+        plt.xlabel("input")
+        plt.xticks(rotation=90)
+        
+        fig.tight_layout()
+
+        plt.show()

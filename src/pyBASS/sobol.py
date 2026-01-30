@@ -30,6 +30,7 @@ from scipy import stats
 
 import pyBASS.utils as uf
 from pyBASS import BassBasis
+from pyBASS.sobol_mc import sobolMC # gets exported from here
 
 
 class sobolBasis:
