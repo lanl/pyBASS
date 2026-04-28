@@ -234,7 +234,7 @@ class sobolBasis:
                     cc = np.zeros(nxfunc)
                     for k in range(i):
                         ind = [
-                            np.all(np.in1d(x, u_list[i][j])) for x in u_list[k]
+                            np.all(np.isin(x, u_list[i][j])) for x in u_list[k]
                         ]
                         cc += (-1) ** (i - k) * np.sum(ints[k][:, ind], axis=1)
                     sob[i][:, j] = ints[i][:, j] + cc
