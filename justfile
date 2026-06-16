@@ -31,6 +31,6 @@ test-highest:
 
 # Run tests with oldest supported dependencies and smallest python version
 test-lowest:
-    uv run -p 3.9 --isolated --resolution=lowest-direct pytest -s
+    uv run -p 3.10 --isolated --resolution=lowest-direct pytest -s
 
 test-all: test-highest test test-lowest
