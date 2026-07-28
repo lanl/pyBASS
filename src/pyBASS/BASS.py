@@ -972,7 +972,10 @@ def bassPCA(
 
     if npc is None:
         cs = np.cumsum(setup.evals) / np.sum(setup.evals) * 100.0
-        npc = np.where(cs > percVar)[0][0] + 1
+        exceed = np.where(cs > percVar)[0]
+        # cs tops out at 100, so percVar=100 (or rounding just under it) leaves
+        # nothing strictly greater; keep every component in that case.
+        npc = exceed[0] + 1 if len(exceed) else len(cs)
 
     if ncores > npc:
         ncores = npc
