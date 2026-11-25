@@ -94,6 +94,16 @@ def _qf(XtX, Xty):
     return uf.getQf(XtX, Xty)
 
 
+def _R_inv_t(R):
+    """Inverse of upper-triangular R, allowing an empty basis.
+
+    scipy < 1.11 raises on a 0x0 solve_triangular, so handle it here.
+    """
+    if R.shape[0] == 0:
+        return np.zeros([0, 0])
+    return sp.linalg.solve_triangular(R, np.identity(R.shape[0]))
+
+
 class BassState:
     """
     The current state of the RJMCMC chain, with methods for getting the log
@@ -246,9 +256,7 @@ class BassState:
                 self.qf = qf_cand.qf
                 self.bhat = qf_cand.bhat
                 self.R = qf_cand.R
-                self.R_inv_t = sp.linalg.solve_triangular(
-                    self.R, np.identity(self.nc)
-                )
+                self.R_inv_t = _R_inv_t(self.R)
                 self.count[0] = self.count[0] + 1
                 self.n_int[self.nbasis - 1] = cand.n_int
                 self.knots[self.nbasis - 1, 0 : (cand.n_int)] = cand.knots
@@ -316,9 +324,7 @@ class BassState:
                 self.qf = qf_cand.qf
                 self.bhat = qf_cand.bhat
                 self.R = qf_cand.R
-                self.R_inv_t = sp.linalg.solve_triangular(
-                    self.R, np.identity(self.nc)
-                )
+                self.R_inv_t = _R_inv_t(self.R)
                 self.count[1] = self.count[1] + 1
 
                 self.Xty[0 : self.nc] = self.Xty[ind]
@@ -398,9 +404,7 @@ class BassState:
                 self.qf = qf_cand.qf
                 self.bhat = qf_cand.bhat
                 self.R = qf_cand.R
-                self.R_inv_t = sp.linalg.solve_triangular(
-                    self.R, np.identity(self.nc)
-                )  # check this
+                self.R_inv_t = _R_inv_t(self.R)  # check this
                 self.count[2] = self.count[2] + 1
 
                 self.Xty[0 : self.nc] = Xty_cand
