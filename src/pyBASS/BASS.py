@@ -58,6 +58,11 @@ class BassPrior:
         self.b_tau = b_tau
         self.w1 = w1
         self.w2 = w2
+        # Options for fitting as one block of a larger Gibbs sampler (see
+        # bassGibbs).  The defaults reproduce the original model.
+        self.intercept = True  # include a constant basis function
+        self.center_basis = False  # center basis functions over the training inputs
+        self.s2_fixed = None  # hold s2 at this value instead of sampling it
         return
 
 
@@ -82,6 +87,23 @@ Sample = namedtuple(
 )
 
 
+def _qf(XtX, Xty):
+    """uf.getQf, allowing an empty basis (no intercept, no basis functions)."""
+    if len(Xty) == 0:
+        return uf.Qf(np.zeros([0, 0]), np.zeros(0), 0.0)
+    return uf.getQf(XtX, Xty)
+
+
+def _R_inv_t(R):
+    """Inverse of upper-triangular R, allowing an empty basis.
+
+    scipy < 1.11 raises on a 0x0 solve_triangular, so handle it here.
+    """
+    if R.shape[0] == 0:
+        return np.zeros([0, 0])
+    return sp.linalg.solve_triangular(R, np.identity(R.shape[0]))
+
+
 class BassState:
     """
     The current state of the RJMCMC chain, with methods for getting the log
@@ -91,7 +113,8 @@ class BassState:
     def __init__(self, data, prior):
         self.data = data
         self.prior = prior
-        self.s2 = 1.0
+        s2_fixed = getattr(prior, "s2_fixed", None)
+        self.s2 = 1.0 if s2_fixed is None else np.array([float(s2_fixed)])
         self.nbasis = 0
         self.tau = 1.0
         self.s2_rate = 1.0
@@ -101,8 +124,11 @@ class BassState:
         self.I_vec = self.I_star / np.sum(self.I_star)
         self.z_star = np.ones(data.p) * prior.w2
         self.z_vec = self.z_star / np.sum(self.z_star)
-        self.basis = np.ones([data.n, 1])
-        self.nc = 1
+        # Column 0 of the basis is the intercept, absent when
+        # prior.intercept is False.
+        self.i0 = int(getattr(prior, "intercept", True))
+        self.basis = np.ones([data.n, self.i0])
+        self.nc = self.i0
         self.knots = np.zeros([prior.maxBasis, prior.maxInt])
         self.signs = np.zeros(
             [prior.maxBasis, prior.maxInt], dtype=int
@@ -110,15 +136,22 @@ class BassState:
         self.vs = np.zeros([prior.maxBasis, prior.maxInt], dtype=int)
         self.n_int = np.zeros([prior.maxBasis], dtype=int)
         self.Xty = np.zeros(prior.maxBasis + 2)
-        self.Xty[0] = np.sum(data.y)
         self.XtX = np.zeros([prior.maxBasis + 2, prior.maxBasis + 2])
-        self.XtX[0, 0] = data.n
-        self.R = np.array([
-            [np.sqrt(data.n)]
-        ])  # np.linalg.cholesky(self.XtX[0, 0])
-        self.R_inv_t = np.array([[1 / np.sqrt(data.n)]])
-        self.bhat = np.mean(data.y)
-        self.qf = pow(np.sqrt(data.n) * np.mean(data.y), 2)
+        if self.i0:
+            self.Xty[0] = np.sum(data.y)
+            self.XtX[0, 0] = data.n
+            self.R = np.array([
+                [np.sqrt(data.n)]
+            ])  # np.linalg.cholesky(self.XtX[0, 0])
+            self.R_inv_t = np.array([[1 / np.sqrt(data.n)]])
+            self.bhat = np.mean(data.y)
+            self.qf = pow(np.sqrt(data.n) * np.mean(data.y), 2)
+        else:
+            self.R = np.zeros([0, 0])
+            self.R_inv_t = np.zeros([0, 0])
+            self.bhat = np.zeros(0)
+            self.qf = 0.0
+        self.beta = np.zeros(self.nc)
         self.count = np.zeros(3)
         self.cmod = False  # has the state changed since the last write (i.e., has a birth, death, or change been accepted)?
         return
@@ -142,10 +175,25 @@ class BassState:
 
     def update(self):
         """
-        Update the current state using a RJMCMC step (and Gibbs steps at
-        the end of this function)
+        Update the current state using a RJMCMC step, then Gibbs steps for
+        s2, beta, lam and tau.  The Gibbs steps are skipped when the RJ
+        proposal is invalid (too few nonzero points, or a rank-deficient
+        basis).
         """
+        if self.rj_step():
+            self.gibbs_step()
 
+    def _center(self, basis):
+        if getattr(self.prior, "center_basis", False):
+            return basis - basis.mean()
+        return basis
+
+    def rj_step(self):
+        """
+        One RJMCMC birth/death/change move.  Returns False if the proposal
+        was invalid and nothing was evaluated.
+        """
+        i0 = self.i0
         move_type = np.random.choice([1, 2, 3])
 
         if self.nbasis == 0:
@@ -168,7 +216,8 @@ class BassState:
             # if proposed basis function has too few non-zero entries,
             # dont change the state
             if (cand.basis > 0).sum() < self.prior.npart:
-                return
+                return False
+            cand = cand._replace(basis=self._center(cand.basis))
 
             ata = np.dot(cand.basis, cand.basis)
             Xta = np.dot(self.basis.T, cand.basis)
@@ -186,12 +235,12 @@ class BassState:
 
             fullRank = qf_cand is not None
             if not fullRank:
-                return
+                return False
 
             alpha = (
                 0.5 / self.s2 * (qf_cand.qf - self.qf) / (1 + self.tau)
                 + np.log(self.lam)
-                - np.log(self.nc)
+                - np.log(self.nbasis + 1)
                 + np.log(1 / 3)
                 - np.log(1 / 3)
                 - cand.lbmcmp
@@ -203,13 +252,11 @@ class BassState:
                 self.cmod = True
                 # note, XtX and Xty are already updated
                 self.nbasis = self.nbasis + 1
-                self.nc = self.nbasis + 1
+                self.nc = self.nbasis + i0
                 self.qf = qf_cand.qf
                 self.bhat = qf_cand.bhat
                 self.R = qf_cand.R
-                self.R_inv_t = sp.linalg.solve_triangular(
-                    self.R, np.identity(self.nc)
-                )
+                self.R_inv_t = _R_inv_t(self.R)
                 self.count[0] = self.count[0] + 1
                 self.n_int[self.nbasis - 1] = cand.n_int
                 self.knots[self.nbasis - 1, 0 : (cand.n_int)] = cand.knots
@@ -230,13 +277,13 @@ class BassState:
 
             tokill_ind = np.random.choice(self.nbasis)
             ind = list(range(self.nc))
-            del ind[tokill_ind + 1]
+            del ind[tokill_ind + i0]
 
-            qf_cand = uf.getQf(self.XtX[np.ix_(ind, ind)], self.Xty[ind])
+            qf_cand = _qf(self.XtX[np.ix_(ind, ind)], self.Xty[ind])
 
             fullRank = qf_cand is not None
             if not fullRank:
-                return
+                return False
 
             I_star = self.I_star.copy()
             I_star[self.n_int[tokill_ind] - 1] = (
@@ -273,13 +320,11 @@ class BassState:
             if np.log(np.random.rand()) < alpha:
                 self.cmod = True
                 self.nbasis = self.nbasis - 1
-                self.nc = self.nbasis + 1
+                self.nc = self.nbasis + i0
                 self.qf = qf_cand.qf
                 self.bhat = qf_cand.bhat
                 self.R = qf_cand.R
-                self.R_inv_t = sp.linalg.solve_triangular(
-                    self.R, np.identity(self.nc)
-                )
+                self.R_inv_t = _R_inv_t(self.R)
                 self.count[1] = self.count[1] + 1
 
                 self.Xty[0 : self.nc] = self.Xty[ind]
@@ -310,7 +355,7 @@ class BassState:
                 self.z_star = z_star[:]
                 self.z_vec = z_vec[:]
 
-                self.basis = np.delete(self.basis, tokill_ind + 1, 1)
+                self.basis = np.delete(self.basis, tokill_ind + i0, 1)
 
         else:
             # CHANGE step
@@ -329,7 +374,8 @@ class BassState:
             # if proposed basis function has too few non-zero entries,
             # dont change the state
             if (cand.basis > 0).sum() < self.prior.npart:
-                return
+                return False
+            cand = cand._replace(basis=self._center(cand.basis))
 
             ata = np.dot(cand.basis.T, cand.basis)
             Xta = np.dot(self.basis.T, cand.basis).reshape(self.nc)
@@ -337,18 +383,19 @@ class BassState:
 
             ind = list(range(self.nc))
             XtX_cand = self.XtX[np.ix_(ind, ind)].copy()
-            XtX_cand[tochange_basis + 1, :] = Xta
-            XtX_cand[:, tochange_basis + 1] = Xta
-            XtX_cand[tochange_basis + 1, tochange_basis + 1] = ata.item()
+            j = tochange_basis + i0
+            XtX_cand[j, :] = Xta
+            XtX_cand[:, j] = Xta
+            XtX_cand[j, j] = ata.item()
 
             Xty_cand = self.Xty[0 : self.nc].copy()
-            Xty_cand[tochange_basis + 1] = aty.item()
+            Xty_cand[j] = aty.item()
 
             qf_cand = uf.getQf(XtX_cand, Xty_cand)
 
             fullRank = qf_cand is not None
             if not fullRank:
-                return
+                return False
 
             alpha = 0.5 / self.s2 * (qf_cand.qf - self.qf) / (1 + self.tau)
 
@@ -357,9 +404,7 @@ class BassState:
                 self.qf = qf_cand.qf
                 self.bhat = qf_cand.bhat
                 self.R = qf_cand.R
-                self.R_inv_t = sp.linalg.solve_triangular(
-                    self.R, np.identity(self.nc)
-                )  # check this
+                self.R_inv_t = _R_inv_t(self.R)  # check this
                 self.count[2] = self.count[2] + 1
 
                 self.Xty[0 : self.nc] = Xty_cand
@@ -372,10 +417,35 @@ class BassState:
                     cand.signs
                 )
 
-                self.basis[:, tochange_basis + 1] = cand.basis.reshape(
+                self.basis[:, tochange_basis + i0] = cand.basis.reshape(
                     self.data.n
                 )
+        return True
 
+    def gibbs_step(self):
+        """Gibbs updates of s2 (beta integrated out), beta, lam and tau
+        given the current basis."""
+        s2_fixed = getattr(self.prior, "s2_fixed", None)
+        if s2_fixed is None:
+            self._sample_s2()
+        else:
+            self.s2 = np.array([float(s2_fixed)])
+
+        self.beta = self.bhat / (1 + self.tau) + np.dot(
+            self.R_inv_t, np.random.normal(size=self.nc)
+        ) * np.sqrt(self.s2 / (1 + self.tau))
+
+        a_lam = self.prior.h1 + self.nbasis
+        b_lam = self.prior.h2 + 1
+        self.lam = np.random.gamma(a_lam, 1 / b_lam, size=1)
+
+        temp = np.dot(self.R, self.beta)
+        qf2 = np.dot(temp, temp)
+        a_tau = self.prior.a_tau + self.nc / 2
+        b_tau = self.prior.b_tau + 0.5 * qf2 / self.s2
+        self.tau = np.random.gamma(a_tau, 1 / b_tau, size=1)
+
+    def _sample_s2(self):
         a_s2 = self.prior.g1 + self.data.n / 2
         b_s2 = self.prior.g2 + 0.5 * (
             self.data.ssy
@@ -389,19 +459,27 @@ class BassState:
             )
         self.s2 = 1 / np.random.gamma(a_s2, 1 / b_s2, size=1)
 
-        self.beta = self.bhat / (1 + self.tau) + np.dot(
-            self.R_inv_t, np.random.normal(size=self.nc)
-        ) * np.sqrt(self.s2 / (1 + self.tau))
+    def set_response(self, y):
+        """
+        Point the chain at a new response vector, keeping the basis
+        functions.  For use inside a larger Gibbs sampler (bassGibbs), where
+        the response is a latent variable that changes between updates.  Only
+        the quantities that involve y change; beta is refreshed by the next
+        gibbs_step.
+        """
+        y = np.asarray(y, dtype=float).reshape(self.data.n)
+        self.data.y = y
+        self.data.ssy = np.sum(y * y)
+        nc = self.nc
+        if nc > 0:
+            self.Xty[0:nc] = np.dot(self.basis.T, y)
+            qf = uf.getQf(self.XtX[0:nc, 0:nc], self.Xty[0:nc])
+            self.bhat = qf.bhat
+            self.qf = qf.qf
 
-        a_lam = self.prior.h1 + self.nbasis
-        b_lam = self.prior.h2 + 1
-        self.lam = np.random.gamma(a_lam, 1 / b_lam, size=1)
-
-        temp = np.dot(self.R, self.beta)
-        qf2 = np.dot(temp, temp)
-        a_tau = self.prior.a_tau + (self.nbasis + 1) / 2
-        b_tau = self.prior.b_tau + 0.5 * qf2 / self.s2
-        self.tau = np.random.gamma(a_tau, 1 / b_tau, size=1)
+    def fitted(self):
+        """Current regression function at the training inputs."""
+        return np.dot(self.basis, self.beta)
 
 
 class BassModel:
@@ -448,7 +526,7 @@ class BassModel:
         self.samples.s2[self.k] = self.state.s2.item()
         self.samples.lam[self.k] = self.state.lam.item()
         self.samples.tau[self.k] = self.state.tau.item()
-        self.samples.beta[self.k, 0 : (self.state.nbasis + 1)] = self.state.beta
+        self.samples.beta[self.k, 0 : self.state.nc] = self.state.beta
         self.samples.nbasis[self.k] = self.state.nbasis
 
         if self.state.cmod:  # basis part of state was changed
@@ -519,20 +597,29 @@ class BassModel:
         plt.show()
 
     def makeBasisMatrix(self, model_ind, X):
-        """Make basis matrix for model"""
+        """
+        Make basis matrix for model.  X is on the normalized (0-1) scale.
+        With prior.center_basis, each basis function has its training mean
+        subtracted, as it did during fitting.
+        """
         nb = self.samples.nbasis_models[model_ind]
+        i0 = int(getattr(self.prior, "intercept", True))
+        center = getattr(self.prior, "center_basis", False)
 
         n = len(X)
-        mat = np.zeros([n, nb + 1])
-        mat[:, 0] = 1
+        mat = np.zeros([n, nb + i0])
+        if i0:
+            mat[:, 0] = 1
         for m in range(nb):
             ind = list(range(self.samples.n_int[model_ind, m]))
-            mat[:, m + 1] = uf.makeBasis(
+            args = (
                 self.samples.signs[model_ind, m, ind],
                 self.samples.vs[model_ind, m, ind],
                 self.samples.knots[model_ind, m, ind],
-                X,
-            ).reshape(n)
+            )
+            mat[:, m + i0] = uf.makeBasis(*args, X).reshape(n)
+            if center:
+                mat[:, m + i0] -= uf.makeBasis(*args, self.data.xx).mean()
         return mat
 
     def predict(self, X, mcmc_use=None, nugget=False):
@@ -567,7 +654,11 @@ class BassModel:
             nn = len(mcmc_use_j)
             out[range(k, nn + k), :] = np.dot(
                 self.samples.beta[
-                    mcmc_use_j, 0 : (self.samples.nbasis_models[j] + 1)
+                    mcmc_use_j,
+                    0 : (
+                        self.samples.nbasis_models[j]
+                        + int(getattr(self.prior, "intercept", True))
+                    ),
                 ],
                 self.makeBasisMatrix(j, Xs).T,
             )
@@ -668,6 +759,150 @@ def bass(
     print("\rBASS MCMC Complete. Time: {:f} seconds.".format(t1 - t0))
     # del bm.writeState # the user should not have access to this
     return bm
+
+
+class bassGibbs:
+    """
+    BASS as one block of a larger Gibbs sampler.
+
+    :func:`bass` fits a fixed response from start to finish.  When the
+    response is itself a latent variable that another part of a sampler
+    updates between visits (data augmentation), the BASS chain has to carry
+    its state from one visit to the next and be advanced a few steps at a time
+    against whatever the response currently is.  This class does that::
+
+        g = bassGibbs(X, y0, nstore, g1=2, g2=0.01)
+        for it in range(n_iter):
+            ...                       # update the latent response y
+            g.set_response(y)         # keep the basis functions, swap y
+            g.step(3)                 # 3 RJMCMC moves, each followed by Gibbs
+                                      # draws of s2, beta, lam and tau
+            mu = g.fitted()           # regression function at the training X
+            s2 = g.s2()               # its error variance
+            if keep:
+                g.save()              # record the state as a posterior draw
+        mod = g.model()               # BassModel: predict(), plot()
+
+    Validity.  Each step is the ordinary BASS update: an RJ move on the basis
+    functions given (s2, tau, lam), then Gibbs draws of s2 (beta integrated
+    out), beta, lam and tau.  That kernel leaves p(basis, s2, beta, lam, tau |
+    y) invariant, so interleaving it with updates of y is a valid Gibbs sampler
+    for the joint model.  Unlike :meth:`BassState.update`, :meth:`step` runs
+    the Gibbs draws even when the RJ proposal is invalid, so that beta always
+    reflects the current response.
+
+    Options are those of :func:`bass` that describe the model or the proposals
+    (w1, w2, maxInt, maxBasis, npart, g1, g2, s2_lower, h1, h2, a_tau, b_tau)
+    plus the options added for this use:
+
+    :param intercept: include a constant basis function (default True).
+    :param center_basis: center basis functions over the training inputs
+        (default False).  ``intercept=False`` with ``center_basis=True`` gives
+        a regression function that averages to exactly zero over the training
+        inputs.
+    :param s2_fixed: hold s2 fixed at this value (default None: sample it).
+    :param nstore: the number of states :meth:`save` can record.
+
+    Like :func:`bass`, it draws from NumPy's global random state.
+    """
+
+    def __init__(
+        self,
+        xx,
+        y,
+        nstore=1,
+        w1=5,
+        w2=5,
+        maxInt=3,
+        maxBasis=1000,
+        npart=None,
+        g1=0,
+        g2=0,
+        s2_lower=0,
+        h1=10,
+        h2=10,
+        a_tau=0.5,
+        b_tau=None,
+        intercept=True,
+        center_basis=False,
+        s2_fixed=None,
+    ):
+        xx = np.asarray(xx, dtype=float)
+        if xx.ndim == 1:
+            xx = xx[:, None]
+        y = np.asarray(y, dtype=float).reshape(-1)
+        if xx.shape[0] != len(y):
+            raise ValueError("xx must have one row per element of y.")
+        if s2_fixed is not None and not s2_fixed > 0:
+            raise ValueError("s2_fixed must be None or positive.")
+        if b_tau is None:
+            b_tau = len(y) / 2
+        if npart is None:
+            npart = min(20, 0.1 * len(y))
+        bd = BassData(xx, y)
+        maxInt = min(maxInt, bd.p)
+        bp = BassPrior(
+            maxInt, maxBasis, npart, g1, g2, s2_lower, h1, h2, a_tau, b_tau,
+            w1, w2,
+        )
+        bp.intercept = bool(intercept)
+        bp.center_basis = bool(center_basis)
+        bp.s2_fixed = None if s2_fixed is None else float(s2_fixed)
+        self.bm = BassModel(bd, bp, int(nstore))
+        self.bm.state.cmod = True  # record the starting basis if nothing changes
+        self.n_prop = 0
+        self.n_acc = 0
+        self.bm.state.gibbs_step()  # so beta exists before the first step
+
+    def set_response(self, y):
+        """Replace the response, keeping the current basis functions."""
+        y = np.asarray(y, dtype=float).reshape(-1)
+        if len(y) != self.bm.data.n:
+            raise ValueError(f"y must have {self.bm.data.n} elements.")
+        self.bm.state.set_response(y)
+
+    def step(self, n_steps=1):
+        """Advance the chain by n_steps updates against the current response."""
+        st = self.bm.state
+        for _ in range(int(n_steps)):
+            before = st.count.sum()
+            st.rj_step()
+            self.n_prop += 1
+            self.n_acc += int(st.count.sum() > before)
+            st.gibbs_step()
+
+    def fitted(self):
+        """Current regression function at the training inputs (length n)."""
+        return self.bm.state.fitted()
+
+    def s2(self):
+        """Current error variance."""
+        return float(np.asarray(self.bm.state.s2).item())
+
+    def nbasis(self):
+        return self.bm.state.nbasis
+
+    def accept_rate(self):
+        """Fraction of accepted RJMCMC proposals (invalid ones count as rejected)."""
+        return self.n_acc / max(self.n_prop, 1)
+
+    def n_saved(self):
+        return self.bm.k
+
+    def save(self):
+        """Record the current state as the next posterior draw."""
+        if self.bm.k >= self.bm.nstore:
+            raise RuntimeError(f"All {self.bm.nstore} draws have been saved.")
+        st = self.bm.state
+        # writeState expects arrays for these (as BassState.update leaves them)
+        st.lam = np.atleast_1d(st.lam)
+        st.tau = np.atleast_1d(st.tau)
+        self.bm.writeState()
+
+    def model(self):
+        """The saved draws as a BassModel, for predict() and plot().  Predict
+        with ``mcmc_use=np.arange(n_saved())`` until all are saved."""
+        return self.bm
 
 
 class PoolBass(object):
